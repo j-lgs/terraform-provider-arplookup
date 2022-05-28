@@ -2,6 +2,8 @@ package arplookup
 
 import (
 	"context"
+	"net"
+	"reflect"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -62,15 +64,45 @@ type ipDataSource struct {
 	provider provider
 }
 
-func (d ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (ipDataSource ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
 	var data ipDataSourceData
-
 	diags := req.Config.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	mac, err := net.ParseMAC(data.MACAddr.Value)
+	if err != nil {
+		resp.Diagnostics.AddError("unable to parse MAC address", err.Error())
+		return
+	}
+
+	if !reflect.DeepEqual(ipDataSource.provider.network, net.IPNet{}) && data.Network.Null {
+		resp.Diagnostics.AddError("no networks specified", "`network` must be specified in either the provider or the datasource.")
+		return
+	}
+
+	var network *net.IPNet
+	if !reflect.DeepEqual(ipDataSource.provider.network, net.IPNet{}) {
+		network = &ipDataSource.provider.network
+	}
+
+	if !data.Network.Null {
+		_, network, err = net.ParseCIDR(data.Network.Value)
+		if err != nil {
+			resp.Diagnostics.AddError("unable to parse network CIDR", err.Error())
+			return
+		}
+	}
+
+	ip, err := checkARP(ctx, mac, *network)
+	if err != nil {
+		resp.Diagnostics.AddError("unable to check system ARP cache", err.Error())
+		return
+	}
+
+	data.IP = types.String{Value: ip.String()}
 	data.Id = types.String{Value: "ip"}
 
 	diags = resp.State.Set(ctx, &data)

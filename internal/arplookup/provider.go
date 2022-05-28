@@ -2,6 +2,7 @@ package arplookup
 
 import (
 	"context"
+	"net"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -13,20 +14,30 @@ var _ tfsdk.Provider = &provider{}
 type provider struct {
 	configured bool
 	version string
+	network net.IPNet
 }
 
 type providerData struct {
-	SearchNetwork types.String `tfsdk:"search_net"`
+	Network types.String `tfsdk:"network"`
 }
 
 func (p *provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
 	var data providerData
 	diags := req.Config.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	p.network = net.IPNet{}
+	if !data.Network.Null {
+		_, network, err := net.ParseCIDR(data.Network.Value)
+		if err != nil {
+			return
+		}
+		p.network = *network
+	}
+
 	p.configured = true
 }
 
@@ -36,14 +47,14 @@ func (p *provider) GetResources(ctx context.Context) (map[string]tfsdk.ResourceT
 
 func (p *provider) GetDataSources(ctx context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
-		"ip": ipDataSourceType{},
+		"arplookup_ip": ipDataSourceType{},
 	}, nil
 }
 
 func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfsdk.Schema{
 		Attributes: map[string]tfsdk.Attribute{
-			"search_net": {
+			"network": {
 				MarkdownDescription: "Network CIDR to search for.",
 				Optional:            true,
 				Type:                types.StringType,
