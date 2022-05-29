@@ -17,4 +17,4 @@ description: |-
 
 ### Optional
 
-- `search_net` (String) Network CIDR to search for.
+- `network` (String) Network CIDR to search for.
