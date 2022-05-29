@@ -47,8 +47,8 @@ jobs:
           - '1.1.*'
           - '1.2.*'
     steps:
-      - name: Ensure sudo is present
-        run: apt update && apt install sudo
+      - name: Ensure apt cache is updated
+        run: sudo apt update
 
       - uses: actions/setup-go@v3
         with:
