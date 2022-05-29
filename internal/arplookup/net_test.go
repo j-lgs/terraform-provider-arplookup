@@ -46,7 +46,7 @@ func TestCheckARPRunRand4(t *testing.T) {
 			mac:       mustParseMAC(t, "1b:55:91:bc:82:54"),
 			count:     20,
 			expect:    nil,
-			expectErr: ipNotFoundError,
+			expectErr: errNoIP,
 		},
 	}
 

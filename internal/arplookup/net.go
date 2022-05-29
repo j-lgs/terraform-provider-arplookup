@@ -41,7 +41,7 @@ func mockARPTable4(seed int64, count int, needle *needleType) arpTableGet {
 
 		// Generate random IPv4 addresses.
 		buf := make([]byte, 4)
-		for i, _ := range IPs {
+		for i := 0; i < len(IPs); i++ {
 			_, err := r.Read(buf)
 			if err != nil {
 				return arptable{}, nil
@@ -54,7 +54,7 @@ func mockARPTable4(seed int64, count int, needle *needleType) arpTableGet {
 
 		// Generate random IPv6 MAC addresses.
 		buf = make([]byte, 6)
-		for i, _ := range MACs {
+		for i := 0; i < len(MACs); i++ {
 			_, err := r.Read(buf)
 			if err != nil {
 				return arptable{}, nil
@@ -126,6 +126,9 @@ const pingTimeout = 50 * time.Millisecond
 // linuxPollIPs is an implementation of pollNetIPs for Linux systems.
 func linuxPollIPs(ctx context.Context) pollNetIPs {
 	return func(network net.IPNet) error {
+		ctx, cancel := context.WithTimeout(ctx, pollIPTimeout)
+		defer cancel()
+
 		var ipnet netaddr.IPPrefix
 		ok := false
 		if ipnet, ok = netaddr.FromStdIPNet(&network); !ok {
@@ -174,8 +177,8 @@ func linuxPollIPs(ctx context.Context) pollNetIPs {
 	}
 }
 
-// macNotFoundError is an error
-var ipNotFoundError error = fmt.Errorf("error: IP address corresponding to given MAC address not found in system ARP table")
+// errNoIP is an error used when an IP cannot be found from an associated MAC address.
+var errNoIP error = fmt.Errorf("error: IP address corresponding to given MAC address not found in system ARP table")
 
 // checkARP is a wrapper for checkARPRun to abstract out OS specific components.
 func checkARP(ctx context.Context, MAC net.HardwareAddr, network net.IPNet) (net.IP, error) {
@@ -205,7 +208,7 @@ func checkARPRun(MAC net.HardwareAddr, network net.IPNet, arpFunc arpTableGet, p
 		}
 	}
 	if ip == nil {
-		return ip, ipNotFoundError
+		return ip, errNoIP
 	}
 
 	return
