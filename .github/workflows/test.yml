@@ -22,6 +22,11 @@ jobs:
       - uses: actions/checkout@v3
       - run: go mod download
       - run: go build -v .
+      - run: go vet ./...
+      #Does not work with go 1.18 yet
+      #- run: go run github.com/golangci/golangci-lint/cmd/golangci-lint run ./internal/arplookup
+      - run: go run honnef.co/go/tools/cmd/staticcheck ./internal/arplookup
+
   generate:
     runs-on: ubuntu-latest
     steps:

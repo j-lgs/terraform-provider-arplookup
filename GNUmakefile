@@ -1,16 +1,24 @@
-add: check build test
+add: build test
 
 .PHONY: acctest
 acctest:
 	@tools/pretest.sh
 
 test:
-	@go test ./... -v -race -vet=off $(TESTARGS)
+	@echo "generate ---> testing code"
+	@go test ./... -v -race -vet=off -$(TESTARGS)
 
-check:
-	@go vet ./...
+generate:
+	@echo "generate ---> generating code"
 	@go generate ./...
 
-build:
-	@go build ./...
+check:
+	@echo "check ---> linting source code"
+	@go vet ./...
+	@#go run github.com/golangci/golangci-lint/cmd/golangci-lint run ./internal/arplookup
+	@go run honnef.co/go/tools/cmd/staticcheck ./internal/arplookup
+
+build: check
+	@echo "build ---> building code"
+	@go build -v .
 

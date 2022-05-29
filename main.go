@@ -11,9 +11,6 @@ import (
 
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 
-/*go:generate go run github.com/golangci/golangci-lint/cmd/golangci-lint run ./...*/
-//go:generate go run honnef.co/go/tools/cmd/staticcheck ./...
-
 var (
 	version string = "dev"
 )
