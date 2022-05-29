@@ -1,3 +1,5 @@
+[![Tests](https://github.com/j-lgs/terraform-provider-arplookup/actions/workflows/test.yml/badge.svg)](https://github.com/j-lgs/terraform-provider-arplookup/actions/workflows/test.yml)
+
 # terraform-provider-arplookup
 A Terraform provider that contains a datasource which looks up an IP address in a network given an interface MAC address.
 ​
