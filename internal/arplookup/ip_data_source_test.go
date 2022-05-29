@@ -1,29 +1,36 @@
 package arplookup
 
 import (
-	"testing"
-
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"os"
+	"testing"
 )
 
-func TestAccExampleDataSource(t *testing.T) {
+func TestAccIPDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheck(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+		},
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// Read testing
 			{
-				Config: testAccExampleDataSourceConfig,
+				Config: testAccIPDataSourceConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.scaffolding_example.test", "id", "example-id"),
+					resource.TestCheckResourceAttr("data.arplookup_ip.test", "id", "ip"),
 				),
 			},
 		},
 	})
 }
 
-const testAccExampleDataSourceConfig = `
-data "scaffolding_example" "test" {
-  configurable_attribute = "example"
+func macaddr() string {
+	v, _ := os.LookupEnv("MAC")
+	return v
+}
+
+var testAccIPDataSourceConfig = `
+data "arplookup_ip" "test" {
+  macaddr = "` + macaddr() + `"
+  network = "172.18.0.0/24"
 }
 `

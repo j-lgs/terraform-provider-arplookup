@@ -2,7 +2,7 @@ add: check build test
 
 .PHONY: acctest
 acctest:
-	@TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m
+	@tools/pretest.sh
 
 test:
 	@go test ./... -v -race -vet=off $(TESTARGS)

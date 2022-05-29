@@ -1,6 +1,7 @@
 package arplookup
 
 import (
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -12,4 +13,7 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 }
 
 func testAccPreCheck(t *testing.T) {
+	if _, ok := os.LookupEnv("MAC"); !ok {
+		t.Fatalf("environment variable MAC not set. Failing acceptance test.")
+	}
 }

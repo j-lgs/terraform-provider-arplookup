@@ -5,27 +5,30 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"os/exec"
-	"time"
 	"net"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-ping/ping"
+	"inet.af/netaddr"
 )
 
+// arptable is a type describing a mapping of MAC to IP addresses.
 type arptable = map[string]net.IP
 
-// arpTableGet defines a function type that returns the system's arp cache as a map of MAC addresses to IPs
+// arpTableGet defines a function type that returns the system's arp cache as a map of MAC addresses to IPs.
 type arpTableGet = func() (arptable, error)
 
+// needleType defines known values that will be placed into the mock artable.
 type needleType struct {
 	mac net.HardwareAddr
 	ip  net.IP
 }
 
 // mockARPTable4 is a mock implementation of arpTableGet for testing purposes, containing IPv4 addresses and MAC-48 hardware addresses.
-// It randomly generates `count` entries. Requires a seed for repeatability on failures. `needle` is a predetermined MAC to be added
+// It randomly generates `count` entries. Requires a seed for repeatability on failures. `needle` is a predetermined MAC to be added.
 // which will randomly be placed in the table.,
 func mockARPTable4(seed int64, count int, needle *needleType) arpTableGet {
 	return func() (table arptable, err error) {
@@ -76,6 +79,8 @@ func mockARPTable4(seed int64, count int, needle *needleType) arpTableGet {
 // linuxARPTable is an implementation of arpTableGet for Linux systems.
 func linuxARPTable() arpTableGet {
 	return func() (table arptable, err error) {
+		table = arptable{}
+
 		arp, err := os.Open("/proc/net/arp")
 		if err != nil {
 			return nil, err
@@ -85,7 +90,8 @@ func linuxARPTable() arpTableGet {
 		// proc arp table has the MAC on field 3 and IP on field 0
 		scanner := bufio.NewScanner(arp)
 		for scanner.Scan() {
-			fields := strings.Fields(scanner.Text())
+			text := scanner.Text()
+			fields := strings.Fields(text)
 			table[fields[3]] = net.ParseIP(fields[0])
 		}
 
@@ -103,19 +109,67 @@ func mockPollIPs() pollNetIPs {
 	}
 }
 
-// Default timeout is 30 seconds
-var pollIPTimeout = 30 * time.Second
+// isInvalidHost checks whether the host is not a broadcast address.
+func isInvalidHost(ip netaddr.IP) bool {
+	if ip.Is4() {
+		bytes := ip.As4()
+		return bytes[3] == byte(0) || bytes[3] == byte(255)
+	}
+	return false
+}
+
+// Default timeout is 30 seconds.
+const pollIPTimeout = 30 * time.Second
+const pingInterval = 10 * time.Millisecond
+const pingTimeout = 50 * time.Millisecond
 
 // linuxPollIPs is an implementation of pollNetIPs for Linux systems.
 func linuxPollIPs(ctx context.Context) pollNetIPs {
 	return func(network net.IPNet) error {
-		ctx, cancel := context.WithTimeout(ctx, 180*time.Second)
-		defer cancel()
-
-		err := exec.CommandContext(ctx, "nmap", "-sP", network.String()).Run()
-		if err != nil {
-			return err
+		var ipnet netaddr.IPPrefix
+		ok := false
+		if ipnet, ok = netaddr.FromStdIPNet(&network); !ok {
+			return fmt.Errorf("failure to convert net.IPNet to netaddr.IPPrefix")
 		}
+
+		iprange := ipnet.Range()
+		pinger, err := ping.NewPinger(iprange.From().String())
+		if err != nil {
+			return fmt.Errorf("failure creating new `pinger`: %w", err)
+		}
+
+		// Only set this when acceptance testing because it runs within an emulated network.
+		// Not needed on most Linux distributions because they support unprivileged udp pings.
+		if value, ok := os.LookupEnv("TF_ACC"); ok {
+			b, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("error parsing boolean value for TEST_ACC: %w", err)
+			}
+			if b {
+				pinger.SetPrivileged(true)
+			}
+		}
+
+		pinger.Interval = pingInterval
+		pinger.Timeout = pingTimeout
+		pinger.Count = 1
+		for current := iprange.From(); current.Compare(iprange.To()) <= 0; current = current.Next() {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("context timed out %w", ctx.Err())
+			default:
+				if current.IsLoopback() || current.IsMulticast() || current.IsLoopback() ||
+					current.IsUnspecified() || !current.IsPrivate() || isInvalidHost(current) {
+					continue
+				}
+				pinger.SetIPAddr(current.IPAddr())
+				err = pinger.Run()
+				if err != nil {
+					return fmt.Errorf("failure pinging IP %s: %w", current.String(), err)
+				}
+			}
+		}
+
 		return nil
 	}
 }

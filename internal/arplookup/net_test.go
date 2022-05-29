@@ -1,10 +1,10 @@
 package arplookup
 
 import (
-	"testing"
 	"net"
-	"time"
 	"reflect"
+	"testing"
+	"time"
 )
 
 func mustParseMAC(t *testing.T, input string) (MAC net.HardwareAddr) {
@@ -31,21 +31,21 @@ func TestCheckARPRunRand4(t *testing.T) {
 	// Set seed to the value shown in the test to aid in debugging
 	// Example: seed = int64(1653732731739890760)
 
-	testcases := []struct{
-		mac     net.HardwareAddr
-		count   int
-		expect  *net.IP
+	testcases := []struct {
+		mac       net.HardwareAddr
+		count     int
+		expect    *net.IP
 		expectErr error
 	}{
 		{
-			mac: mustParseMAC(t, "1b:55:91:bc:82:54"),
-			count: 2000,
-			expect: parseIP("192.168.33.44"),
+			mac:       mustParseMAC(t, "1b:55:91:bc:82:54"),
+			count:     20,
+			expect:    parseIP("192.168.33.44"),
 			expectErr: nil,
 		}, {
-			mac: mustParseMAC(t, "1b:55:91:bc:82:54"),
-			count: 2000,
-			expect: nil,
+			mac:       mustParseMAC(t, "1b:55:91:bc:82:54"),
+			count:     20,
+			expect:    nil,
 			expectErr: ipNotFoundError,
 		},
 	}
@@ -56,7 +56,7 @@ func TestCheckARPRunRand4(t *testing.T) {
 		if test.expect != nil {
 			needle = &needleType{
 				mac: test.mac,
-				ip: *test.expect,
+				ip:  *test.expect,
 			}
 		}
 

@@ -2,8 +2,8 @@ package arplookup
 
 import (
 	"context"
-	"net"
 	"fmt"
+	"net"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -11,10 +11,11 @@ import (
 )
 
 var _ tfsdk.Provider = &provider{}
+
 type provider struct {
 	configured bool
-	version string
-	network net.IPNet
+	version    string
+	network    net.IPNet
 }
 
 type providerData struct {

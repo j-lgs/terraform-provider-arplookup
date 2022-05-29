@@ -13,7 +13,7 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-lat7est
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/setup-go@v3
@@ -42,11 +42,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # list whatever Terraform versions here you would like to support
         terraform:
           - '1.0.*'
           - '1.1.*'
+          - '1.2.*'
     steps:
+      - name: Ensure sudo is present
+        run: apt update && apt install sudo
+
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -54,9 +57,18 @@ jobs:
         with:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
-      - uses: actions/checkout@v3
-      - run: go mod download
-      - env:
+
+      - name: Checkout source
+        uses: actions/checkout@v3
+      - name: Download go modules
+        run: go mod download
+
+      - name: Install iproute2
+        run: sudo apt-get install -y iproute2
+      - name: Get slirp4netns
+        run: curl -o tools/slirp4netns --fail -L https://github.com/rootless-containers/slirp4netns/releases/download/v1.2.0/slirp4netns-$(uname -m) && chmod +x tools/slirp4netns
+      - name: Run acceptance tests
+        env:
           TF_ACC: "1"
-        run: go test -v -cover ./internal/provider/
+        run: tools/pretest.sh
         timeout-minutes: 10
