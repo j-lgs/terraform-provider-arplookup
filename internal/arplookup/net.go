@@ -118,8 +118,8 @@ func isInvalidHost(ip netaddr.IP) bool {
 	return false
 }
 
-// Default timeout is 30 seconds.
-const pollIPTimeout = 30 * time.Second
+// Default timeout is 360 seconds.
+const pollIPTimeout = 360 * time.Second
 const pingInterval = 10 * time.Millisecond
 const pingTimeout = 50 * time.Millisecond
 
