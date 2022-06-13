@@ -17,7 +17,7 @@
         tpa = pkgs.buildGo118Module {
           inherit system;
           pname = "terraform-provider-arplookup";
-          version = "0.1.0";
+          version = "0.1.2";
 
           src = ./.;
 
