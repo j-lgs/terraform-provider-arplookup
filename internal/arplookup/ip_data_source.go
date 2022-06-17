@@ -31,6 +31,9 @@ func (t ipDataSourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Dia
 				MarkdownDescription: "Network to search for macaddr in.",
 				Optional:            true,
 				Type:                types.StringType,
+				PlanModifiers: tfsdk.AttributePlanModifiers{
+					tfsdk.RequiresReplace(),
+				},
 			},
 			"ip": {
 				MarkdownDescription: "Resultant IP address.",
