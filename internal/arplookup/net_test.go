@@ -26,10 +26,12 @@ func parseIP(input string) *net.IP {
 //
 // A false value for expect will signal that we shoudn't insert a known value to the mock arptable.
 func TestCheckARPRunRand4(t *testing.T) {
-	seed := time.Now().UnixNano()
+	ipSeed := time.Now().UnixNano()
+	macSeed := ipSeed
 
 	// Set seed to the value shown in the test to aid in debugging
-	// Example: seed = int64(1653732731739890760)
+	// Example: ipSeed  = int64(1653732731739890760)
+	//          macSeed = int64(1653732731739890760)
 
 	testcases := []struct {
 		mac       net.HardwareAddr
@@ -60,15 +62,15 @@ func TestCheckARPRunRand4(t *testing.T) {
 			}
 		}
 
-		arpFunc := mockARPTable4(seed, test.count, needle)
+		arpFunc := mockARPTable4(ipSeed, macSeed, test.count, needle)
 
 		ip, err := checkARPRun(test.mac, net.IPNet{}, arpFunc, mockPollIPs())
 		if err != nil && err != test.expectErr {
-			t.Fatalf("(seed %d) error encountered while running test: %s", seed, err.Error())
+			t.Fatalf("(ipSeed %d, macSeed %d) error encountered while running test: %s", ipSeed, macSeed, err.Error())
 		}
 		if test.expect != nil {
 			if !reflect.DeepEqual(ip, *test.expect) {
-				t.Fatalf("(seed %d) expected IP: %s, got: %s", seed, (*test.expect).String(), ip.String())
+				t.Fatalf("(ipSeed %d, macSeed %d) expected IP: %s, got: %s", ipSeed, macSeed, (*test.expect).String(), ip.String())
 			}
 		}
 	}

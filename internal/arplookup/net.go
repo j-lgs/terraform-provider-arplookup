@@ -30,19 +30,20 @@ type needleType struct {
 // mockARPTable4 is a mock implementation of arpTableGet for testing purposes, containing IPv4 addresses and MAC-48 hardware addresses.
 // It randomly generates `count` entries. Requires a seed for repeatability on failures. `needle` is a predetermined MAC to be added.
 // which will randomly be placed in the table.,
-func mockARPTable4(seed int64, count int, needle *needleType) arpTableGet {
+func mockARPTable4(ipSeed int64, macSeed int64, count int, needle *needleType) arpTableGet {
 	return func() (table arptable, err error) {
 		table = make(arptable, count)
 
 		IPs := make([]net.IP, count)
 		MACs := make([]string, count)
 
-		r := rand.New(rand.NewSource(seed))
+		ipRand := rand.New(rand.NewSource(ipSeed))
+		macRand := rand.New(rand.NewSource(macSeed))
 
 		// Generate random IPv4 addresses.
 		buf := make([]byte, 4)
 		for i := 0; i < len(IPs); i++ {
-			_, err := r.Read(buf)
+			_, err := ipRand.Read(buf)
 			if err != nil {
 				return arptable{}, nil
 			}
@@ -52,10 +53,10 @@ func mockARPTable4(seed int64, count int, needle *needleType) arpTableGet {
 			IPs[i] = net.IP(b)
 		}
 
-		// Generate random IPv6 MAC addresses.
+		// Generate random MAC addresses.
 		buf = make([]byte, 6)
 		for i := 0; i < len(MACs); i++ {
-			_, err := r.Read(buf)
+			_, err := macRand.Read(buf)
 			if err != nil {
 				return arptable{}, nil
 			}
