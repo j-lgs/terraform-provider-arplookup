@@ -1,10 +1,10 @@
 #!/bin/sh
+
 mk_netns () {
     ip netns add "$1"
     ip link add "$2" type veth peer name "$3" netns "$1"
     ip link set "$2" up
     ip addr add "$5" dev "$2"
-    ip link set lo up
 
     ip netns exec "$1" ip link set "$3" up
     ip netns exec "$1" ip addr add "$4" dev "$3"
@@ -13,9 +13,25 @@ mk_netns () {
 interface="ceth5"
 ns="netns5"
 
-mount -t tmpfs none /run
+if type lsb_release >/dev/null 2>&1 ; then
+   DISTRO=$(lsb_release -i -s)
+elif [ -e /etc/os-release ] ; then
+   DISTRO=$(awk -F= '$1 == "ID" {print $2}' /etc/os-release)
+fi
+
+DISTRO=$(printf '%s\n' "$DISTRO" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+
+case "$DISTRO" in
+    nixos*)
+	SYSTEM="$(readlink /run/current-system)"
+	PATH="/run/current-system/sw/bin:$PATH" mount -t tmpfs none /run
+	ln -s "$SYSTEM" /run/current-system
+	;;
+    *)      mount -t tmpfs none /run ;;
+esac
 
 # create namespaces and pairs
+ip link set lo up
 mk_netns netns0  veth0  ceth0  "172.18.0.11/24" "172.18.0.10/31"
 mk_netns netns1  veth1  ceth1  "172.18.0.13/24" "172.18.0.12/31"
 mk_netns netns2  veth2  ceth2  "172.18.0.15/24" "172.18.0.14/31"
@@ -29,6 +45,6 @@ mk_netns netns9  veth9  ceth9  "172.18.0.29/24" "172.18.0.28/31"
 mk_netns netns10 veth10 ceth10 "172.18.0.31/24" "172.18.0.30/31"
 
 macaddr=$(ip netns exec "$ns" ip link show "$interface" | grep ether | awk '{ print $2 }')
-echo $TF_ACC
-TF_ACC=1 MAC="$macaddr" go test -v -cover ./internal/arplookup -v $1 -timeout 120m
+ip=$(ip netns exec "$ns" ip a show "$interface" | grep inet | head -n1 | awk '{ print $2 }' | cut -f1 -d"/")
+TF_ACC=1 MAC="$macaddr" IP="$ip" go test -v -cover ./internal/arplookup -v $1 -timeout 120m
 ip netns delete netns0
