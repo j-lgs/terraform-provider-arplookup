@@ -67,6 +67,22 @@ type ipDataSource struct {
 	provider provider
 }
 
+func getARP(ctx context.Context, resp *tfsdk.ReadDataSourceResponse, data ipDataSourceData, MAC net.HardwareAddr, network net.IPNet) (ip net.IP) {
+	ip, err := checkARP(ctx, MAC, network)
+	// If no IP was found and an address exists keep the old one. This behaviour is fine since this provider's primary purpose
+	// is bootstrapping nodes that get initial IPs via DHCP.
+	if err == errNoIP && !data.IP.Null {
+		ip = net.ParseIP(data.IP.Value)
+		return
+	}
+	if err != nil {
+		resp.Diagnostics.AddError("unable to check system ARP cache", err.Error())
+		return
+	}
+
+	return
+}
+
 func (ipDataSource ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
 	var data ipDataSourceData
 	diags := req.Config.Get(ctx, &data)
@@ -99,9 +115,8 @@ func (ipDataSource ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSou
 		}
 	}
 
-	ip, err := checkARP(ctx, mac, *network)
-	if err != nil {
-		resp.Diagnostics.AddError("unable to check system ARP cache", err.Error())
+	ip := getARP(ctx, resp, data, mac, *network)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
