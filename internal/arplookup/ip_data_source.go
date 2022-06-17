@@ -121,7 +121,7 @@ func (ipDataSource ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSou
 	}
 
 	data.IP = types.String{Value: ip.String()}
-	data.Id = types.String{Value: "ip"}
+	data.Id = types.String{Value: mac.String()}
 
 	diags = resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(diags...)
