@@ -1,77 +1,76 @@
 package arplookup
 
 import (
-	"net"
-	"reflect"
+	"context"
 	"testing"
 	"time"
+
+	"inet.af/netaddr"
 )
 
-func mustParseMAC(t *testing.T, input string) (MAC net.HardwareAddr) {
-	MAC, err := net.ParseMAC(input)
-	if err != nil {
-		t.Fatalf("error parsing MAC address: %s", err.Error())
-	}
-	return MAC
-}
-
-func parseIP(input string) *net.IP {
-	ip := net.ParseIP(input)
-	return &ip
-}
-
-// TestCheckARPRunRand4 tests the checkARPRun function with mock functions. The mock `arptable` function is
-// `mockARPTable4 and generates random MAC and IPv4 address data to suppliment unit tests with static datasets.
-// Network isn't used here so it will be passed as a null value to the test.
-//
-// A false value for expect will signal that we shoudn't insert a known value to the mock arptable.
-func TestCheckARPRunRand4(t *testing.T) {
-	ipSeed := time.Now().UnixNano()
-	macSeed := ipSeed
-
-	// Set seed to the value shown in the test to aid in debugging
-	// Example: ipSeed  = int64(1653732731739890760)
-	//          macSeed = int64(1653732731739890760)
+// TestCheckARPRunTimeout checks wether an empty IP, and errNoIP is returned from checkARPRun if an invalid
+// set of IP ranges, in relation to the expected output, is passed to checkARPun. This attempts to model what
+// happens with a scan for a machine with a desired MAC doesn't exist is ran.
+func TestCheckARPRunTimeout(t *testing.T) {
+	var builderIncorrect netaddr.IPSetBuilder
+	builderIncorrect.AddPrefix(netaddr.MustParseIPPrefix("192.168.34.0/16"))
+	ipSetIncorrect, _ := builderIncorrect.IPSet()
 
 	testcases := []struct {
-		mac       net.HardwareAddr
-		count     int
-		expect    *net.IP
-		expectErr error
+		ipset  netaddr.IPSet
+		expect netaddr.IP
 	}{
 		{
-			mac:       mustParseMAC(t, "1b:55:91:bc:82:54"),
-			count:     20,
-			expect:    parseIP("192.168.33.44"),
-			expectErr: nil,
-		}, {
-			mac:       mustParseMAC(t, "1b:55:91:bc:82:54"),
-			count:     20,
-			expect:    nil,
-			expectErr: errNoIP,
+			ipset:  *ipSetIncorrect,
+			expect: netaddr.MustParseIP("10.0.33.44"),
 		},
 	}
 
 	for _, test := range testcases {
-		var needle *needleType = nil
+		ctx, cancel := context.WithCancel(context.Background())
+		ac := mkDummyARP(test.expect)
 
-		if test.expect != nil {
-			needle = &needleType{
-				mac: test.mac,
-				ip:  *test.expect,
-			}
+		time.AfterFunc(50*time.Millisecond, cancel)
+		ip, err := checkARPRun(ctx, test.ipset, ac)
+
+		if err != nil && err != errNoIP {
+			t.Fatalf("expected errNoIP from checkARPRun, got: %s", err.Error())
 		}
 
-		arpFunc := mockARPTable4(ipSeed, macSeed, test.count, needle)
+		if !ip.IsZero() {
+			t.Fatalf("expected empty IP, got: %s", ip.String())
+		}
+	}
+}
 
-		ip, err := checkARPRun(test.mac, net.IPNet{}, arpFunc, mockPollIPs())
+// TestCheckARPRun checks whether checkARPRun will return valid data if it finds a machine with a desired MAC.
+func TestCheckARPRun(t *testing.T) {
+	var builderCorrect netaddr.IPSetBuilder
+	builderCorrect.AddPrefix(netaddr.MustParseIPPrefix("192.168.33.0/16"))
+	ipSetCorrect, _ := builderCorrect.IPSet()
+
+	testcases := []struct {
+		ipset     netaddr.IPSet
+		expect    netaddr.IP
+		expectErr error
+	}{
+		{
+			ipset:     *ipSetCorrect,
+			expect:    netaddr.MustParseIP("192.168.33.44"),
+			expectErr: nil,
+		},
+	}
+
+	for _, test := range testcases {
+		ac := mkDummyARP(test.expect)
+
+		ip, err := checkARPRun(context.Background(), test.ipset, ac)
 		if err != nil && err != test.expectErr {
-			t.Fatalf("(ipSeed %d, macSeed %d) error encountered while running test: %s", ipSeed, macSeed, err.Error())
+			t.Fatalf("error encountered while running test: %s", err.Error())
 		}
-		if test.expect != nil {
-			if !reflect.DeepEqual(ip, *test.expect) {
-				t.Fatalf("(ipSeed %d, macSeed %d) expected IP: %s, got: %s", ipSeed, macSeed, (*test.expect).String(), ip.String())
-			}
+
+		if ip != test.expect {
+			t.Fatalf("expected IP: %s, got: %s", test.expect.String(), ip.String())
 		}
 	}
 }

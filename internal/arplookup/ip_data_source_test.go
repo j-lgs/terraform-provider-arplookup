@@ -49,13 +49,6 @@ func TestAccIPDataSourceFails(t *testing.T) {
 				ExpectError: regexp.MustCompile("error: IP address corresponding to given MAC address not found in system ARP"),
 				Check:       resource.ComposeAggregateTestCheckFunc(),
 			},
-			// Next step should switch the IP to a different subnet then test again, confirming we get the old variable.
-			// This is expected behabiour as this is a oneshot resource. Making it dynamic would break a lot of guarentees
-			// about terraform state and would be too "dynamic" for it's purpose (provisioning virtual machines in a DHCP network
-			// environment).
-
-			// Next step. Move test driver code to Go so it can be dynamically changed at test time.
-			// Driver code will be called during the PreConfig() phase.
 		},
 	})
 }
@@ -70,16 +63,30 @@ func ip() string {
 	return v
 }
 
+// TODO add ipv6
 var testAccIPDataSourceConfig = `
 data "arplookup_ip" "test" {
   macaddr = "` + macaddr() + `"
-  network = "172.18.0.0/24"
+  network = [
+    "10.18.0.0/21",
+    "10.18.8.0/23",
+    "10.18.10.0/24"
+  ]
 }
 `
 
+// TODO add ipv6
 var testAccIPInvalidMAC = `
+provider "arplookup" {
+  timeout = "5s"
+}
+
 data "arplookup_ip" "test" {
   macaddr = "0b:de:ad:be:ef:0b"
-  network = "172.18.0.0/24"
+  network = [
+    "10.18.0.0/21",
+    "10.18.8.0/23",
+    "10.18.10.0/24"
+  ]
 }
 `

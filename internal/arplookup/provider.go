@@ -3,11 +3,12 @@ package arplookup
 import (
 	"context"
 	"fmt"
-	"net"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"inet.af/netaddr"
 )
 
 var _ tfsdk.Provider = &provider{}
@@ -15,11 +16,13 @@ var _ tfsdk.Provider = &provider{}
 type provider struct {
 	configured bool
 	version    string
-	network    net.IPNet
+	network    netaddr.IPSet
+	timeout    time.Duration
 }
 
 type providerData struct {
-	Network types.String `tfsdk:"network"`
+	Network types.List   `tfsdk:"network"`
+	Timeout types.String `tfsdk:"timeout"`
 }
 
 func (p *provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
@@ -30,13 +33,25 @@ func (p *provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	p.network = net.IPNet{}
+	p.network = netaddr.IPSet{}
 	if !data.Network.Null {
-		_, network, err := net.ParseCIDR(data.Network.Value)
+		networks := []string{}
+		data.Network.ElementsAs(ctx, &networks, false)
+		network, err := mkIPSet(networks)
 		if err != nil {
+			resp.Diagnostics.AddError("unable to parse network CIDRs", err.Error())
 			return
 		}
 		p.network = *network
+	}
+
+	if !data.Timeout.Null {
+		timeout, err := time.ParseDuration(data.Timeout.Value)
+		if err != nil {
+			resp.Diagnostics.AddError("unable to parse timeout", err.Error())
+			return
+		}
+		p.timeout = timeout
 	}
 
 	p.configured = true
@@ -57,6 +72,16 @@ func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostic
 		Attributes: map[string]tfsdk.Attribute{
 			"network": {
 				MarkdownDescription: "Network CIDR to search for.",
+				Optional:            true,
+				Type: types.ListType{
+					ElemType: types.StringType,
+				},
+				PlanModifiers: tfsdk.AttributePlanModifiers{
+					tfsdk.RequiresReplace(),
+				},
+			},
+			"timeout": {
+				MarkdownDescription: "Timeout for ARP lookup.",
 				Optional:            true,
 				Type:                types.StringType,
 			},
