@@ -39,5 +39,10 @@ website/vendor
 **/#*
 **/.#*
 
-tools/slirp4netns
+# Go
 vendor/
+
+# Nix
+result
+.direnv/
+.envrc
