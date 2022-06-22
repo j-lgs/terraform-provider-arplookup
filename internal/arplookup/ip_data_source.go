@@ -104,7 +104,7 @@ func (ipDataSource ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSou
 
 	mac, err := net.ParseMAC(data.MACAddr.Value)
 	if err != nil {
-		resp.Diagnostics.AddError("unable to parse MAC address", err.Error())
+		resp.Diagnostics.AddError(fmt.Sprintf("unable to parse MAC address: %s", data.MACAddr.String()), err.Error())
 		return
 	}
 

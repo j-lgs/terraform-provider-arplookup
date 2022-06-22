@@ -10,6 +10,7 @@ import (
 	"inet.af/netaddr"
 )
 
+// toNetaddr is a convenience function to convert a netip.Addr to a netaddr.IP
 func toNetaddr(ip netip.Addr) netaddr.IP {
 	if ip.Is4() {
 		return netaddr.IPFrom4(ip.As4())
@@ -18,6 +19,7 @@ func toNetaddr(ip netip.Addr) netaddr.IP {
 	return netaddr.IPFrom16(ip.As16())
 }
 
+// fromNetaddr is a convenience function to convert a netaddr.IP to a netip.Addr
 func fromNetaddr(ip netaddr.IP) netip.Addr {
 	if ip.Is4() {
 		return netip.AddrFrom4(ip.As4())
@@ -26,12 +28,15 @@ func fromNetaddr(ip netaddr.IP) netip.Addr {
 	return netip.AddrFrom16(ip.As16())
 }
 
+// arpClient is an interface that describes a platform agnostic way of performing an ARP lookup for a MAC address.
 type arpClient interface {
-	init() error
+	init() error    // init any resources needed to perform ARP requests
+	destroy() error // destroy any resources needed to perform ARP requests
+	// send a request to an IP to determine whether its MAC matches one specified in the implementation structure
 	request(netaddr.IP) (netaddr.IP, error)
-	destroy() error
 }
 
+// doArp sends a request to all IPs in ipRange to determine whether their MAC matches the MAC in ac.
 func doArp(ac arpClient, ipRange netaddr.IPRange) (netaddr.IP, error) {
 	// check all IPs in range, attempting to find correct MAC address
 	for current := ipRange.From(); current.Compare(ipRange.To()) <= 0; current = current.Next() {

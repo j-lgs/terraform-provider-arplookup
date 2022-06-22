@@ -1,12 +1,23 @@
 package arplookup
 
 import (
-	"os"
+	"fmt"
 	"regexp"
 	"testing"
 
+	"terraform-provider-arplookup/internal/arplookup/testdriver"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
+
+var (
+	index   = 5
+	ip      = fmt.Sprintf("10.18.%d.18", index+1)
+	network = fmt.Sprintf("%s/17", ip)
+	mac     = "3e:50:6e:54:28:3d"
+)
+
+var driver *testdriver.Driver = &testdriver.Driver{}
 
 // Test whether an IP is successfully derived from a MAC address
 func TestAccIPDataSource(t *testing.T) {
@@ -17,19 +28,32 @@ func TestAccIPDataSource(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
+				PreConfig: func() {
+					if err := driver.Init(); err != nil {
+						t.Fatalf("unable to init test driver: %s", err.Error())
+					}
+
+					if err := driver.Needle(mac, network, index); err != nil {
+						t.Fatalf("unable to insert needle into test haystack: %s", err.Error())
+					}
+				},
 				Config: testAccIPDataSourceConfig,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.arplookup_ip.test", "id", macaddr()),
-					resource.TestCheckResourceAttr("data.arplookup_ip.test", "ip", ip()),
+					resource.TestCheckResourceAttr("data.arplookup_ip.test", "id", mac),
+					resource.TestCheckResourceAttr("data.arplookup_ip.test", "ip", ip),
+				),
+			}, {
+				PreConfig: func() {
+					if err := driver.EnsureNo(mac); err != nil {
+						t.Fatalf("unable to ensure mac doesn't exist: %s", err.Error())
+					}
+				},
+				Config: testAccIPDataSourceConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.arplookup_ip.test", "id", mac),
+					resource.TestCheckResourceAttr("data.arplookup_ip.test", "ip", ip),
 				),
 			},
-			// Next step should switch the IP to a different subnet then test again, confirming we get the old variable.
-			// This is expected behabiour as this is a oneshot resource. Making it dynamic would break a lot of guarentees
-			// about terraform state and would be too "dynamic" for it's purpose (provisioning virtual machines in a DHCP network
-			// environment).
-
-			// Next step. Move test driver code to Go so it can be dynamically changed at test time.
-			// Driver code will be called during the PreConfig() phase.
 		},
 	})
 }
@@ -45,6 +69,11 @@ func TestAccIPDataSourceFails(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
+				PreConfig: func() {
+					if err := driver.EnsureNo(mac); err != nil {
+						t.Fatalf("unable to ensure mac doesn't exist: %s", err.Error())
+					}
+				},
 				Config:      testAccIPInvalidMAC,
 				ExpectError: regexp.MustCompile("error: IP address corresponding to given MAC address not found in system ARP"),
 				Check:       resource.ComposeAggregateTestCheckFunc(),
@@ -53,24 +82,16 @@ func TestAccIPDataSourceFails(t *testing.T) {
 	})
 }
 
-func macaddr() string {
-	v, _ := os.LookupEnv("MAC")
-	return v
-}
-
-func ip() string {
-	v, _ := os.LookupEnv("IP")
-	return v
-}
-
 // TODO add ipv6
 var testAccIPDataSourceConfig = `
+provider "arplookup" {
+  timeout = "5s"
+}
+
 data "arplookup_ip" "test" {
-  macaddr = "` + macaddr() + `"
+  macaddr = "` + mac + `"
   network = [
-    "10.18.0.0/21",
-    "10.18.8.0/23",
-    "10.18.10.0/24"
+    "10.18.0.0/17",
   ]
 }
 `
