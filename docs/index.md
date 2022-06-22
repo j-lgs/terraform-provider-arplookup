@@ -17,4 +17,5 @@ description: |-
 
 ### Optional
 
-- `network` (String) Network CIDR to search for.
+- `network` (List of String) Network CIDR to search for.
+- `timeout` (String) Timeout for ARP lookup.

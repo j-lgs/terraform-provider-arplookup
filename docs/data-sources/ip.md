@@ -18,7 +18,7 @@ Example data source
 ### Optional
 
 - `macaddr` (String) MAC address to search for.
-- `network` (String) Network to search for macaddr in.
+- `network` (List of String) Network to search for macaddr in.
 
 ### Read-Only
 
