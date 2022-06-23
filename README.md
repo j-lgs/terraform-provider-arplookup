@@ -11,7 +11,7 @@ Check the examples folder to see how the provider can be used. Also check out my
 
 Because the binary needs the NET_RAW capability (due to it's use of raw sockets) the following command must be ran after a `terraform init -upgrade`.
 ```
-sudo setcap cap_net_raw,cap_net_admin=eip .terraform/providers/registry.terraform.io/j-lgs/arplookup/0.3.0/linux_amd64/terraform-provider-arplookup_v0.3.1
+sudo setcap cap_net_raw,cap_net_admin=eip .terraform/providers/registry.terraform.io/j-lgs/arplookup/0.3.1/linux_amd64/terraform-provider-arplookup_v0.3.1
 ```
 
 # Limitations
