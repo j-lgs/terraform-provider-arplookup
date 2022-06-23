@@ -13,21 +13,62 @@ import (
 
 var _ tfsdk.Provider = &provider{}
 
+func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfsdk.Schema{
+		Attributes: map[string]tfsdk.Attribute{
+			"network": {
+				MarkdownDescription: "Network CIDR to search for.",
+				Optional:            true,
+				Type: types.ListType{
+					ElemType: types.StringType,
+				},
+				PlanModifiers: tfsdk.AttributePlanModifiers{
+					tfsdk.RequiresReplace(),
+				},
+				Validators: []tfsdk.AttributeValidator{
+					networkValidator{},
+				},
+			},
+			"timeout": {
+				MarkdownDescription: `Timeout for ARP lookup.
+Global attribute that can be overidden by being set in data sources.`,
+				Optional: true,
+				Type:     types.StringType,
+				Validators: []tfsdk.AttributeValidator{
+					timeValidator{},
+				},
+			},
+			"backoff": {
+				MarkdownDescription: `How long to wait between scans of the IP ranges specified by ` + "`network`" + `.
+Global attribute that can be overidden by being set in data sources.`,
+				Optional: true,
+				Type:     types.StringType,
+				Validators: []tfsdk.AttributeValidator{
+					timeValidator{},
+				},
+			},
+		},
+	}, nil
+}
+
 type provider struct {
 	configured bool
 	version    string
 	network    netaddr.IPSet
 	timeout    time.Duration
+	backoff    time.Duration
 }
 
 type providerData struct {
 	Network types.List   `tfsdk:"network"`
 	Timeout types.String `tfsdk:"timeout"`
+	Backoff types.String `tfsdk:"backoff"`
 }
 
 func (data *providerData) configure(ctx context.Context, p *provider) error {
 	p.network = netaddr.IPSet{}
 	p.timeout = 5 * time.Minute
+	p.backoff = 5 * time.Second
 
 	if !data.Network.Null {
 		networks := []string{}
@@ -45,6 +86,14 @@ func (data *providerData) configure(ctx context.Context, p *provider) error {
 			return err
 		}
 		p.timeout = timeout
+	}
+
+	if !data.Backoff.Null {
+		backoff, err := time.ParseDuration(data.Backoff.Value)
+		if err != nil {
+			return err
+		}
+		p.backoff = backoff
 	}
 
 	p.configured = true
@@ -73,34 +122,6 @@ func (p *provider) GetResources(ctx context.Context) (map[string]tfsdk.ResourceT
 func (p *provider) GetDataSources(ctx context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
 		"arplookup_ip": ipDataSourceType{},
-	}, nil
-}
-
-func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfsdk.Schema{
-		Attributes: map[string]tfsdk.Attribute{
-			"network": {
-				MarkdownDescription: "Network CIDR to search for.",
-				Optional:            true,
-				Type: types.ListType{
-					ElemType: types.StringType,
-				},
-				PlanModifiers: tfsdk.AttributePlanModifiers{
-					tfsdk.RequiresReplace(),
-				},
-				Validators: []tfsdk.AttributeValidator{
-					networkValidator{},
-				},
-			},
-			"timeout": {
-				MarkdownDescription: "Timeout for ARP lookup.",
-				Optional:            true,
-				Type:                types.StringType,
-				Validators: []tfsdk.AttributeValidator{
-					timeValidator{},
-				},
-			},
-		},
 	}, nil
 }
 

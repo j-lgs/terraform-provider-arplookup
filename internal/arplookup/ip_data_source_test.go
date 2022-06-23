@@ -62,6 +62,17 @@ func TestAccIPDataSource(t *testing.T) {
 					resource.TestCheckResourceAttr("data.arplookup_ip.test", "id", mac),
 					resource.TestCheckResourceAttr("data.arplookup_ip.test", "ip", ip),
 				),
+			},  {
+				PreConfig: func() {
+					if err := driver.NeedleAfter(mac, ip, network, index, 5 * time.Second); err != nil {
+						t.Fatalf("unable to queue needle func: %s", err.Error())
+					}
+				},
+				Config: testAccIPDataSourceConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.arplookup_ip.test", "id", mac),
+					resource.TestCheckResourceAttr("data.arplookup_ip.test", "ip", ip),
+				),
 			},
 		},
 	})
@@ -74,6 +85,7 @@ provider "arplookup" {
 
 data "arplookup_ip" "test" {
   interface = "br0"
+  backoff = "4s"
   macaddr = "` + mac + `"
   network = [
     "10.18.0.0/21",

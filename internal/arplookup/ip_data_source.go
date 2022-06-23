@@ -34,6 +34,14 @@ func (t ipDataSourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Dia
 					macValidator{},
 				},
 			},
+			"backoff": {
+				MarkdownDescription: "How long to wait between scans of the IP ranges specified by `network`.",
+				Optional:            true,
+				Type:                types.StringType,
+				Validators: []tfsdk.AttributeValidator{
+					timeValidator{},
+				},
+			},
 			"network": {
 				MarkdownDescription: "Network to search for macaddr in.",
 				Optional:            true,
@@ -77,6 +85,7 @@ func (t ipDataSourceType) NewDataSource(ctx context.Context, in tfsdk.Provider) 
 }
 
 type ipDataSourceData struct {
+	Backoff   types.String `tfsdk:"backoff"`
 	Network   types.List   `tfsdk:"network"`
 	MACAddr   types.String `tfsdk:"macaddr"`
 	Interface types.String `tfsdk:"interface"`
@@ -113,12 +122,20 @@ func (data *ipDataSourceData) read(ctx context.Context, ipDataSource ipDataSourc
 		}
 	}
 
+	backoff := ipDataSource.provider.backoff
+	if !data.Backoff.Null {
+		backoff, err = time.ParseDuration(data.Backoff.Value)
+		if err != nil {
+			return err
+		}
+	}
+
 	iface, err := net.InterfaceByName(data.Interface.Value)
 	if err != nil {
 		return err
 	}
 
-	ip, err := getIPFor(ctx, mac, ctxData{iface: iface, network: network, backoff: 8 * time.Second})
+	ip, err := getIPFor(ctx, mac, ctxData{iface: iface, network: network, backoff: backoff})
 	if err != nil {
 		return fmt.Errorf("error running getIPFor: %w", err)
 	}
