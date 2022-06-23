@@ -46,6 +46,14 @@ func (t ipDataSourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Dia
 					networkValidator{},
 				},
 			},
+			"interface": {
+				MarkdownDescription: "Interface to bind to when searching for machines.",
+				Required:            true,
+				Type:                types.StringType,
+				Validators: []tfsdk.AttributeValidator{
+					interfaceValidator{},
+				},
+			},
 			"ip": {
 				MarkdownDescription: "Resultant IP address.",
 				Computed:            true,
@@ -68,18 +76,19 @@ func (t ipDataSourceType) NewDataSource(ctx context.Context, in tfsdk.Provider) 
 }
 
 type ipDataSourceData struct {
-	Network types.List   `tfsdk:"network"`
-	MACAddr types.String `tfsdk:"macaddr"`
-	IP      types.String `tfsdk:"ip"`
-	Id      types.String `tfsdk:"id"`
+	Network   types.List   `tfsdk:"network"`
+	MACAddr   types.String `tfsdk:"macaddr"`
+	Interface types.String `tfsdk:"interface"`
+	IP        types.String `tfsdk:"ip"`
+	Id        types.String `tfsdk:"id"`
 }
 
 type ipDataSource struct {
 	provider provider
 }
 
-func getARP(ctx context.Context, IP types.String, MAC net.HardwareAddr, network netaddr.IPSet) (ip netaddr.IP, err error) {
-	ip, err = checkARP(ctx, MAC, network)
+func getARP(ctx context.Context, IP types.String, MAC net.HardwareAddr, network netaddr.IPSet, iface *net.Interface) (ip netaddr.IP, err error) {
+	ip, err = checkARP(ctx, MAC, network, iface)
 
 	// If no IP was found and an address exists keep the old one. This behaviour is fine since this provider's primary purpose
 	// is bootstrapping nodes that get initial IPs via DHCP.
@@ -98,23 +107,14 @@ func getARP(ctx context.Context, IP types.String, MAC net.HardwareAddr, network 
 	return
 }
 
-func (ipDataSource ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
-	var data ipDataSourceData
-	diags := req.Config.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
+func (data *ipDataSourceData) read(ctx context.Context, ipDataSource ipDataSource) error {
 	mac, err := net.ParseMAC(data.MACAddr.Value)
 	if err != nil {
-		resp.Diagnostics.AddError(fmt.Sprintf("unable to parse MAC address: %s", data.MACAddr.String()), err.Error())
-		return
+		return err
 	}
 
-	if !reflect.DeepEqual(ipDataSource.provider.network, net.IPNet{}) && data.Network.Null {
-		resp.Diagnostics.AddError("no networks specified", "`network` must be specified in either the provider or the datasource.")
-		return
+	if reflect.DeepEqual(ipDataSource.provider.network, net.IPNet{}) && data.Network.Null {
+		return fmt.Errorf("neither network specified")
 	}
 
 	var network *netaddr.IPSet
@@ -128,25 +128,42 @@ func (ipDataSource ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSou
 
 		network, err = mkIPSet(networks)
 		if err != nil {
-			resp.Diagnostics.AddError("unable to parse network CIDRs", err.Error())
-			return
+			return err
 		}
 	}
 
-	if ipDataSource.provider.timeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, ipDataSource.provider.timeout)
-		defer cancel()
+	iface, err := net.InterfaceByName(data.Interface.Value)
+	if err != nil {
+		return err
 	}
 
-	ip, err := getARP(ctx, data.IP, mac, *network)
+	ip, err := getARP(ctx, data.IP, mac, *network, iface)
 	if err != nil {
-		resp.Diagnostics.AddError(err.Error(), "")
-		return
+		return err
 	}
 
 	data.IP = types.String{Value: ip.String()}
 	data.Id = types.String{Value: mac.String()}
+
+	return nil
+}
+
+func (ipDataSource ipDataSource) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+	var data ipDataSourceData
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, ipDataSource.provider.timeout)
+	defer cancel()
+
+	if err := data.read(ctx, ipDataSource); err != nil {
+		resp.Diagnostics.AddError("issue encountered while looking up IP", err.Error())
+		return
+	}
 
 	diags = resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(diags...)

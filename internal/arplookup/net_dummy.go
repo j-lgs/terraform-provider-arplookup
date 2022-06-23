@@ -1,6 +1,8 @@
 package arplookup
 
 import (
+	"net"
+
 	"inet.af/netaddr"
 )
 
@@ -27,7 +29,7 @@ func (ac *dummyARP) request(current netaddr.IP) (ip netaddr.IP, err error) {
 }
 
 // init implements arpClient for dummyARP. This is a stub.
-func (ac *dummyARP) init() error { return nil }
+func (ac *dummyARP) init(*net.Interface) error { return nil }
 
 // destroy implements arpClient for dummyARP. This is a stub.
 func (ac *dummyARP) destroy() error { return nil }

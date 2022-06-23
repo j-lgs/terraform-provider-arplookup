@@ -2,6 +2,7 @@ package arplookup
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestCheckARPRunTimeout(t *testing.T) {
 		ac := mkDummyARP(test.expect)
 
 		time.AfterFunc(50*time.Millisecond, cancel)
-		ip, err := checkARPRun(ctx, test.ipset, ac)
+		ip, err := checkARPRun(ctx, test.ipset, ac, &net.Interface{})
 
 		if err != nil && err != errNoIP {
 			t.Fatalf("expected errNoIP from checkARPRun, got: %s", err.Error())
@@ -64,7 +65,7 @@ func TestCheckARPRun(t *testing.T) {
 	for _, test := range testcases {
 		ac := mkDummyARP(test.expect)
 
-		ip, err := checkARPRun(context.Background(), test.ipset, ac)
+		ip, err := checkARPRun(context.Background(), test.ipset, ac, &net.Interface{})
 		if err != nil && err != test.expectErr {
 			t.Fatalf("error encountered while running test: %s", err.Error())
 		}

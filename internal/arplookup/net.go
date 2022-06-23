@@ -11,8 +11,8 @@ import (
 
 // arpClient is an interface that describes a platform agnostic way of performing an ARP lookup for a MAC address.
 type arpClient interface {
-	init() error    // init any resources needed to perform ARP requests
-	destroy() error // destroy any resources needed to perform ARP requests
+	init(*net.Interface) error // init any resources needed to perform ARP requests
+	destroy() error            // destroy any resources needed to perform ARP requests
 	// send a request to an IP to determine whether its MAC matches one specified in the implementation structure
 	request(netaddr.IP) (netaddr.IP, error)
 }
@@ -46,15 +46,15 @@ const arpRequestDeadline = 100 * time.Microsecond
 var errNoIP error = fmt.Errorf("error: IP address corresponding to given MAC address not found in system ARP table")
 
 // checkARP is a wrapper for checkARPRun to abstract out OS specific components.
-func checkARP(ctx context.Context, MAC net.HardwareAddr, network netaddr.IPSet) (netaddr.IP, error) {
-	return checkARPRun(ctx, network, mkLinuxARP(MAC))
+func checkARP(ctx context.Context, MAC net.HardwareAddr, network netaddr.IPSet, iface *net.Interface) (netaddr.IP, error) {
+	return checkARPRun(ctx, network, mkLinuxARP(MAC), iface)
 }
 
 // checkARPRun searches an ARP table for a given MAC address in a platform agnostic way. It is important
 // to check if the returned error is macNotFoundError to determine the difference between a failure in
 // operation and a failure to find the mac in the system's table.
-func checkARPRun(ctx context.Context, network netaddr.IPSet, ac arpClient) (ip netaddr.IP, err error) {
-	ac.init()
+func checkARPRun(ctx context.Context, network netaddr.IPSet, ac arpClient, iface *net.Interface) (ip netaddr.IP, err error) {
+	ac.init(iface)
 
 	ip, err = doArp(ac, network.Ranges()[0])
 	if err != nil {

@@ -3,7 +3,6 @@ package arplookup
 import (
 	"fmt"
 	"net"
-	"net/netip"
 	"reflect"
 	"syscall"
 	"time"
@@ -77,12 +76,7 @@ func (ac *linuxARP) request(current netaddr.IP) (netaddr.IP, error) {
 	}
 }
 
-func (ac *linuxARP) initClient() error {
-	iface, err := net.InterfaceByName("br0")
-	if err != nil {
-		return err
-	}
-
+func (ac *linuxARP) initClient(iface *net.Interface) error {
 	client, err := arp.Dial(iface)
 	if err != nil {
 		return err
@@ -90,12 +84,21 @@ func (ac *linuxARP) initClient() error {
 
 	ac.client = client
 
-	ipaddr, err := netip.ParseAddr("10.18.0.1")
+	addrs, err := iface.Addrs()
 	if err != nil {
 		return err
 	}
 
-	ac.srcIP = netaddr.IPFrom4(ipaddr.As4())
+	if len(addrs) <= 0 {
+		return fmt.Errorf("selected network interface has no assigned addresses")
+	}
+
+	ipaddr, err := netaddr.ParseIPPrefix(addrs[0].String())
+	if err != nil {
+		return err
+	}
+
+	ac.srcIP = ipaddr.IP()
 
 	return nil
 }
@@ -125,11 +128,11 @@ func linuxGetCaps() (func() error, error) {
 	return drop, nil
 }
 
-func (ac *linuxARP) init() error {
+func (ac *linuxARP) init(iface *net.Interface) error {
 	// Not needed if running as Root
 	uid := syscall.Getuid()
 	if uid == 0 {
-		return ac.initClient()
+		return ac.initClient(iface)
 	}
 
 	drop, err := linuxGetCaps()
@@ -138,7 +141,7 @@ func (ac *linuxARP) init() error {
 		return err
 	}
 
-	return ac.initClient()
+	return ac.initClient(iface)
 }
 
 func (ac *linuxARP) destroy() error {

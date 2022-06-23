@@ -59,6 +59,21 @@ func TestAccIPDataSource(t *testing.T) {
 }
 
 // Test whether changing the network recreates the resource
+var testAccIPDataSourceConfig = `
+provider "arplookup" {
+  timeout = "30s"
+}
+
+data "arplookup_ip" "test" {
+  interface = "br0"
+  macaddr = "` + mac + `"
+  network = [
+    "10.18.0.0/21",
+    "10.18.8.0/23",
+    "10.18.10.0/24"
+  ]
+}
+`
 
 // Test that being created with an incorrect mac (or host that is down) results in failure after the timeout expires.
 func TestAccIPDataSourceFails(t *testing.T) {
@@ -75,26 +90,12 @@ func TestAccIPDataSourceFails(t *testing.T) {
 					}
 				},
 				Config:      testAccIPInvalidMAC,
-				ExpectError: regexp.MustCompile("error: IP address corresponding to given MAC address not found in system ARP"),
+				ExpectError: regexp.MustCompile("error: IP address corresponding to given MAC"),
 				Check:       resource.ComposeAggregateTestCheckFunc(),
 			},
 		},
 	})
 }
-
-// TODO add ipv6
-var testAccIPDataSourceConfig = `
-provider "arplookup" {
-  timeout = "5s"
-}
-
-data "arplookup_ip" "test" {
-  macaddr = "` + mac + `"
-  network = [
-    "10.18.0.0/17",
-  ]
-}
-`
 
 // TODO add ipv6
 var testAccIPInvalidMAC = `
@@ -103,11 +104,38 @@ provider "arplookup" {
 }
 
 data "arplookup_ip" "test" {
+  interface = "br0"
   macaddr = "0b:de:ad:be:ef:0b"
   network = [
     "10.18.0.0/21",
     "10.18.8.0/23",
     "10.18.10.0/24"
+  ]
+}
+`
+
+func TestAccIPDataSourceWrongInterface(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			testAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccDataSourceWrongInterface,
+				ExpectError: regexp.MustCompile("error getting network interface"),
+				Check:       resource.ComposeAggregateTestCheckFunc(),
+			},
+		},
+	})
+}
+
+var testAccDataSourceWrongInterface = `
+data "arplookup_ip" "test" {
+  interface = "br1"
+  macaddr = "` + mac + `"
+  network = [
+    "10.18.0.1/32",
   ]
 }
 `
