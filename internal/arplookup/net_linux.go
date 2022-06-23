@@ -1,12 +1,16 @@
 package arplookup
 
 import (
+	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"reflect"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/go-ping/ping"
 	"github.com/mdlayher/arp"
 	"inet.af/netaddr"
 	"kernel.org/pub/linux/libs/security/libcap/cap"
@@ -39,8 +43,61 @@ func isTimeout(err error) bool {
 	return ok && netError.Timeout()
 }
 
-func (ac *linuxARP) request(current netaddr.IP) (netaddr.IP, error) {
-	deadline := time.UnixMicro(time.Now().UnixMicro()).Add(arpRequestDeadline)
+func (ac *linuxARP) cache(current IP) error {
+	if current.cached {
+		return nil
+	}
+
+	pinger, err := ping.NewPinger(current.String())
+	if err != nil {
+		return fmt.Errorf("failure creating new `pinger`: %w", err)
+	}
+
+	uid := syscall.Getuid()
+	if uid == 0 {
+		pinger.SetPrivileged(true)
+	}
+
+	pinger.Count = 1
+	if err := pinger.Run(); err != nil {
+		return fmt.Errorf("failure adding IP %s to cache: %w", current.String(), err)
+	}
+
+	return nil
+}
+
+func (ac *linuxARP) try(ips chan<- IP, errors chan<- error) {
+	arp, err := os.Open("/proc/net/arp")
+	if err != nil {
+		errors <- err
+		return
+	}
+	defer arp.Close()
+
+	// proc arp table has the MAC on field 3 and IP on field 0
+	scanner := bufio.NewScanner(arp)
+	for scanner.Scan() {
+		text := scanner.Text()
+		fields := strings.Fields(text)
+
+		ip := fields[0]
+		mac := fields[3]
+
+		if strings.EqualFold(mac, ac.dstMAC.String()) {
+			ip, err := netaddr.ParseIP(ip)
+			if err != nil {
+				errors <- fmt.Errorf("line: \"%s\" error %w", text, err)
+				return
+			}
+
+			ips <- IP{cached: true, IP: ip}
+			return
+		}
+	}
+}
+
+func (ac *linuxARP) request(current netaddr.IP) (IP, error) {
+	deadline := time.Now().Add(arpRequestDeadline)
 	ac.client.SetReadDeadline(deadline)
 
 	for {
@@ -52,19 +109,19 @@ func (ac *linuxARP) request(current netaddr.IP) (netaddr.IP, error) {
 			ac.dstMAC,
 			fromNetaddr(current))
 		if err != nil {
-			return netaddr.IP{}, err
+			return IP{}, err
 		}
 		if err = ac.client.WriteTo(pkt, ac.dstMAC); err != nil {
-			return netaddr.IP{}, err
+			return IP{}, err
 		}
 
 		// Read the client's socket for a response, and if we time out, break the loop and return a nil IP
 		pkt, _, err = ac.client.Read()
 		if isTimeout(err) {
-			return netaddr.IP{}, nil
+			return IP{}, nil
 		}
 		if err != nil {
-			return netaddr.IP{}, err
+			return IP{}, err
 		}
 
 		// If we don't recieve a response from the desired MAC or a reply, continue
@@ -72,7 +129,7 @@ func (ac *linuxARP) request(current netaddr.IP) (netaddr.IP, error) {
 			continue
 		}
 
-		return toNetaddr(pkt.SenderIP), nil
+		return IP{cached: false, IP: toNetaddr(pkt.SenderIP)}, nil
 	}
 }
 

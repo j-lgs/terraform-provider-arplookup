@@ -3,13 +3,14 @@ module terraform-provider-arplookup
 go 1.18
 
 require (
-	github.com/containers/storage v1.41.0
+	github.com/go-ping/ping v1.1.0
 	github.com/golangci/golangci-lint v1.46.2
 	github.com/hashicorp/terraform-plugin-docs v0.10.1
 	github.com/hashicorp/terraform-plugin-framework v0.9.0
 	github.com/hashicorp/terraform-plugin-go v0.9.1
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.17.0
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
+	github.com/opencontainers/runc v1.1.1
 	honnef.co/go/tools v0.3.2
 	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.64

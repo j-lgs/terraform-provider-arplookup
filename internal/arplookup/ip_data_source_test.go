@@ -98,7 +98,7 @@ func TestAccIPDataSourceFails(t *testing.T) {
 					}
 				},
 				Config:      testAccIPInvalidMAC,
-				ExpectError: regexp.MustCompile("error: IP address corresponding to given MAC"),
+				ExpectError: regexp.MustCompile("error running getIPFor: error: IP address corresponding to given MAC"),
 				Check:       resource.ComposeAggregateTestCheckFunc(),
 			},
 		},

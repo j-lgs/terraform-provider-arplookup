@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -87,26 +88,6 @@ type ipDataSource struct {
 	provider provider
 }
 
-func getARP(ctx context.Context, IP types.String, MAC net.HardwareAddr, network netaddr.IPSet, iface *net.Interface) (ip netaddr.IP, err error) {
-	ip, err = checkARP(ctx, MAC, network, iface)
-
-	// If no IP was found and an address exists keep the old one. This behaviour is fine since this provider's primary purpose
-	// is bootstrapping nodes that get initial IPs via DHCP.
-	if err == errNoIP && !IP.Null {
-		ip, err = netaddr.ParseIP(IP.Value)
-
-		if err != nil {
-			return netaddr.IP{}, fmt.Errorf("unable to parse IP in datasource state: %w", err)
-		}
-		return
-	}
-	if err != nil {
-		return netaddr.IP{}, fmt.Errorf("unable to check system ARP cache %w", err)
-	}
-
-	return
-}
-
 func (data *ipDataSourceData) read(ctx context.Context, ipDataSource ipDataSource) error {
 	mac, err := net.ParseMAC(data.MACAddr.Value)
 	if err != nil {
@@ -137,9 +118,9 @@ func (data *ipDataSourceData) read(ctx context.Context, ipDataSource ipDataSourc
 		return err
 	}
 
-	ip, err := getARP(ctx, data.IP, mac, *network, iface)
+	ip, err := getIPFor(ctx, mac, ctxData{iface: iface, network: network, backoff: 8 * time.Second})
 	if err != nil {
-		return err
+		return fmt.Errorf("error running getIPFor: %w", err)
 	}
 
 	data.IP = types.String{Value: ip.String()}

@@ -2,7 +2,6 @@ package arplookup
 
 import (
 	"context"
-	"net"
 	"testing"
 	"time"
 
@@ -12,27 +11,33 @@ import (
 // TestCheckARPRunTimeout checks wether an empty IP, and errNoIP is returned from checkARPRun if an invalid
 // set of IP ranges, in relation to the expected output, is passed to checkARPun. This attempts to model what
 // happens with a scan for a machine with a desired MAC doesn't exist is ran.
-func TestCheckARPRunTimeout(t *testing.T) {
+func TestCheckARPRunInvalid(t *testing.T) {
 	var builderIncorrect netaddr.IPSetBuilder
 	builderIncorrect.AddPrefix(netaddr.MustParseIPPrefix("192.168.34.0/16"))
 	ipSetIncorrect, _ := builderIncorrect.IPSet()
 
+	timeout := 50 * time.Millisecond
+
 	testcases := []struct {
-		ipset  netaddr.IPSet
+		ipset  *netaddr.IPSet
 		expect netaddr.IP
 	}{
 		{
-			ipset:  *ipSetIncorrect,
+			ipset:  ipSetIncorrect,
+			expect: netaddr.MustParseIP("10.0.33.44"),
+		},
+		{
+			ipset:  ipSetIncorrect,
 			expect: netaddr.MustParseIP("10.0.33.44"),
 		},
 	}
 
 	for _, test := range testcases {
-		ctx, cancel := context.WithCancel(context.Background())
 		ac := mkDummyARP(test.expect)
 
-		time.AfterFunc(50*time.Millisecond, cancel)
-		ip, err := checkARPRun(ctx, test.ipset, ac, &net.Interface{})
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		ip, err := checkARPRun(ctx, ac, ctxData{nil, test.ipset, arpFuncBackoff})
 
 		if err != nil && err != errNoIP {
 			t.Fatalf("expected errNoIP from checkARPRun, got: %s", err.Error())
@@ -51,12 +56,12 @@ func TestCheckARPRun(t *testing.T) {
 	ipSetCorrect, _ := builderCorrect.IPSet()
 
 	testcases := []struct {
-		ipset     netaddr.IPSet
+		ipset     *netaddr.IPSet
 		expect    netaddr.IP
 		expectErr error
 	}{
 		{
-			ipset:     *ipSetCorrect,
+			ipset:     ipSetCorrect,
 			expect:    netaddr.MustParseIP("192.168.33.44"),
 			expectErr: nil,
 		},
@@ -65,7 +70,10 @@ func TestCheckARPRun(t *testing.T) {
 	for _, test := range testcases {
 		ac := mkDummyARP(test.expect)
 
-		ip, err := checkARPRun(context.Background(), test.ipset, ac, &net.Interface{})
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		ip, err := checkARPRun(ctx, ac, ctxData{nil, test.ipset, arpFuncBackoff})
 		if err != nil && err != test.expectErr {
 			t.Fatalf("error encountered while running test: %s", err.Error())
 		}
