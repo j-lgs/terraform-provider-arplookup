@@ -17,17 +17,19 @@
         tpa = pkgs.buildGo118Module {
           inherit system;
           pname = "terraform-provider-arplookup";
-          version = "0.2.0";
+          version = "0.3.0";
 
           src = ./.;
 
-          vendorSha256 = "sha256-26WSiBLJYi9giNpwy0CQqpRmo52pzmCNkRvYOSkKXzM=";
+          vendorSha256 = "sha256-0LB2kkLvRra5oT+bvhYURNqTn6ZBmZWVnvukUGLpLRY=";
 
           doCheck = true;
 
           meta = with pkgs.lib;
             {
-
+              description = "A Terraform provider that contains a datasource which looks up an IP address in a network given an interface MAC address.";
+              homepage = "https://github.com/j-lgs/terraform-provider-arplookup";
+              license = licenses.mpl20;
             };
         };
       in {
