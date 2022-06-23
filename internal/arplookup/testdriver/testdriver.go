@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	_ "github.com/opencontainers/runc/libcontainer/nsenter"
 )
@@ -145,7 +146,7 @@ func (driver *Driver) EnsureNo(mac string) error {
 			peer := fmt.Sprintf("veth%dp", i)
 			cmds := []*exec.Cmd{
 				exec.Command("ip", "netns", "exec", netns, "ifconfig", peer, "hw", "ether", mac.String()),
-				exec.Command("ip", "netns", "exec", netns, "ip", "addr", "del", host.ip.Network(), "dev", peer),
+				exec.Command("ip", "netns", "exec", netns, "ip", "addr", "flush", "dev", peer),
 			}
 
 			if err := runCmds(cmds); err != nil {
@@ -164,6 +165,7 @@ func (driver *Driver) Needle(mac string, ip string, network string, nsNumber int
 
 	cmds := []*exec.Cmd{
 		exec.Command("ip", "netns", "exec", netns, "ifconfig", peer, "hw", "ether", mac),
+		exec.Command("ip", "netns", "exec", netns, "ip", "addr", "flush", "dev", peer),
 		exec.Command("ip", "netns", "exec", netns, "ip", "addr", "add", network, "dev", peer),
 	}
 
@@ -172,4 +174,20 @@ func (driver *Driver) Needle(mac string, ip string, network string, nsNumber int
 	}
 
 	return nil
+}
+
+func (driver *Driver) NeedleAfter(mac string, ip string, network string, nsNumber int, duration time.Duration) error {
+	errs := make(chan error, 1)
+	go func(dur time.Duration, errs chan<- error) {
+		t := time.NewTimer(dur)
+		<-t.C
+		if err := driver.Needle(mac, ip, network, nsNumber); err != nil {
+			errs <- err
+			return
+		}
+		errs <- nil
+	}(duration, errs)
+
+	err := <-errs
+	return err
 }

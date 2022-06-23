@@ -75,9 +75,10 @@ func checkARPRun(ctx context.Context, ac arpClient, data ctxData) (ip netaddr.IP
 	result := make(chan IP, 1)
 	errors := make(chan error, 1)
 
-	go ac.try(result, errors)
-	go lookupIPRange(ctx, ac, data.network.Ranges(), result, errors)
 	for {
+		go ac.try(result, errors)
+		go lookupIPRange(ctx, ac, data.network.Ranges(), result, errors)
+
 		t := time.NewTimer(data.backoff)
 		select {
 		case <-ctx.Done():
