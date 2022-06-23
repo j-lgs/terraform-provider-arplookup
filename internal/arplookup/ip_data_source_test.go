@@ -2,8 +2,10 @@ package arplookup
 
 import (
 	"fmt"
+	"math/rand"
 	"regexp"
 	"testing"
+	"time"
 
 	"terraform-provider-arplookup/internal/arplookup/testdriver"
 
@@ -11,16 +13,19 @@ import (
 )
 
 var (
-	index   = 5
-	ip      = fmt.Sprintf("10.18.%d.18", index+1)
-	network = fmt.Sprintf("%s/17", ip)
-	mac     = "3e:50:6e:54:28:3d"
+	index    = 5
+	ip       = fmt.Sprintf("10.18.%d.18", index+1)
+	network  = fmt.Sprintf("%s/17", ip)
+	mac      = "3e:50:6e:54:28:3d"
+	wrongmac = "0b:de:ad:be:ef:0b"
 )
 
 var driver *testdriver.Driver = &testdriver.Driver{}
 
 // Test whether an IP is successfully derived from a MAC address
 func TestAccIPDataSource(t *testing.T) {
+	r := rand.New(rand.NewSource(time.Now().UTC().Unix()))
+
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheck(t)
@@ -29,11 +34,15 @@ func TestAccIPDataSource(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				PreConfig: func() {
-					if err := driver.Init(); err != nil {
+					if err := driver.Init(r); err != nil {
 						t.Fatalf("unable to init test driver: %s", err.Error())
 					}
 
-					if err := driver.Needle(mac, network, index); err != nil {
+					if err := driver.EnsureNo(mac); err != nil {
+						t.Fatalf("unable to ensure mac doesn't exist: %s", err.Error())
+					}
+
+					if err := driver.Needle(mac, ip, network, index); err != nil {
 						t.Fatalf("unable to insert needle into test haystack: %s", err.Error())
 					}
 				},
@@ -58,10 +67,9 @@ func TestAccIPDataSource(t *testing.T) {
 	})
 }
 
-// Test whether changing the network recreates the resource
 var testAccIPDataSourceConfig = `
 provider "arplookup" {
-  timeout = "30s"
+  timeout = "10s"
 }
 
 data "arplookup_ip" "test" {
@@ -85,7 +93,7 @@ func TestAccIPDataSourceFails(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				PreConfig: func() {
-					if err := driver.EnsureNo(mac); err != nil {
+					if err := driver.EnsureNo(wrongmac); err != nil {
 						t.Fatalf("unable to ensure mac doesn't exist: %s", err.Error())
 					}
 				},
@@ -97,19 +105,16 @@ func TestAccIPDataSourceFails(t *testing.T) {
 	})
 }
 
-// TODO add ipv6
 var testAccIPInvalidMAC = `
 provider "arplookup" {
-  timeout = "5s"
+  timeout = "2s"
 }
 
 data "arplookup_ip" "test" {
   interface = "br0"
-  macaddr = "0b:de:ad:be:ef:0b"
+  macaddr = "` + wrongmac + `"
   network = [
-    "10.18.0.0/21",
-    "10.18.8.0/23",
-    "10.18.10.0/24"
+    "10.18.6.0/24"
   ]
 }
 `

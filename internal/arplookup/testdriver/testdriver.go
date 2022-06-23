@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-	"time"
 
 	_ "github.com/opencontainers/runc/libcontainer/nsenter"
 )
@@ -74,7 +73,7 @@ func remountRun() (err error) {
 }
 
 // init initialises a testDriver, creating the network environment for this acceptance test to use
-func (driver *Driver) Init() error {
+func (driver *Driver) Init(r *rand.Rand) error {
 	if driver.ok {
 		return nil
 	}
@@ -84,16 +83,16 @@ func (driver *Driver) Init() error {
 		return fmt.Errorf("acceptance testing must be performed inside fakeroot user namespace")
 	}
 
+	// mount temporary /run
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-
 	if err := remountRun(); err != nil {
 		return err
 	}
 
 	// ensure namespace is clean
 	driver.namespaces = make([]*netNS, nsCount)
-	driver.r = rand.New(rand.NewSource(time.Now().UTC().Unix()))
+	driver.r = r
 
 	bridgeDev, err := mkBridge()
 	if err != nil {
@@ -114,13 +113,43 @@ func (driver *Driver) Init() error {
 	return nil
 }
 
+func randmac(r *rand.Rand) (net.HardwareAddr, error) {
+	buf := make([]byte, 6)
+	_, err := r.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set local bit
+	buf[0] |= 2
+	return net.HardwareAddr(buf), nil
+}
+
 func (driver *Driver) EnsureNo(mac string) error {
 	for _, ns := range driver.namespaces {
 		hostlist := []host{}
 		for i, host := range ns.hosts {
-			if strings.EqualFold(host.mac.String(), mac) {
-				ns.hosts[i] = ns.hosts[len(ns.hosts)-1]
-				hostlist = ns.hosts[:len(ns.hosts)-1]
+			if !strings.EqualFold(host.mac.String(), mac) {
+				continue
+			}
+
+			ns.hosts[i] = ns.hosts[len(ns.hosts)-1]
+			hostlist = ns.hosts[:len(ns.hosts)-1]
+
+			mac, err := randmac(driver.r)
+			if err != nil {
+				return err
+			}
+
+			netns := fmt.Sprintf("netns%d", i)
+			peer := fmt.Sprintf("veth%dp", i)
+			cmds := []*exec.Cmd{
+				exec.Command("ip", "netns", "exec", netns, "ifconfig", peer, "hw", "ether", mac.String()),
+				exec.Command("ip", "netns", "exec", netns, "ip", "addr", "del", host.ip.Network(), "dev", peer),
+			}
+
+			if err := runCmds(cmds); err != nil {
+				return err
 			}
 		}
 		ns.hosts = hostlist
@@ -129,13 +158,13 @@ func (driver *Driver) EnsureNo(mac string) error {
 	return nil
 }
 
-func (driver *Driver) Needle(mac string, ip string, nsNumber int) error {
+func (driver *Driver) Needle(mac string, ip string, network string, nsNumber int) error {
 	netns := fmt.Sprintf("netns%d", nsNumber)
 	peer := fmt.Sprintf("veth%dp", nsNumber)
 
 	cmds := []*exec.Cmd{
 		exec.Command("ip", "netns", "exec", netns, "ifconfig", peer, "hw", "ether", mac),
-		exec.Command("ip", "netns", "exec", netns, "ip", "addr", "add", ip, "dev", peer),
+		exec.Command("ip", "netns", "exec", netns, "ip", "addr", "add", network, "dev", peer),
 	}
 
 	if err := runCmds(cmds); err != nil {
