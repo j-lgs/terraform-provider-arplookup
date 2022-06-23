@@ -25,6 +25,33 @@ type providerData struct {
 	Timeout types.String `tfsdk:"timeout"`
 }
 
+func (data *providerData) configure(ctx context.Context, p *provider) error {
+	p.network = netaddr.IPSet{}
+	p.timeout = 5 * time.Minute
+
+	if !data.Network.Null {
+		networks := []string{}
+		data.Network.ElementsAs(ctx, &networks, false)
+		network, err := mkIPSet(networks)
+		if err != nil {
+			return err
+		}
+		p.network = *network
+	}
+
+	if !data.Timeout.Null {
+		timeout, err := time.ParseDuration(data.Timeout.Value)
+		if err != nil {
+			return err
+		}
+		p.timeout = timeout
+	}
+
+	p.configured = true
+
+	return nil
+}
+
 func (p *provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
 	var data providerData
 	diags := req.Config.Get(ctx, &data)
@@ -33,28 +60,10 @@ func (p *provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	p.network = netaddr.IPSet{}
-	if !data.Network.Null {
-		networks := []string{}
-		data.Network.ElementsAs(ctx, &networks, false)
-		network, err := mkIPSet(networks)
-		if err != nil {
-			resp.Diagnostics.AddError("unable to parse network CIDRs", err.Error())
-			return
-		}
-		p.network = *network
+	if err := data.configure(ctx, p); err != nil {
+		resp.Diagnostics.AddError("issue encountered running provider configure", err.Error())
+		return
 	}
-
-	if !data.Timeout.Null {
-		timeout, err := time.ParseDuration(data.Timeout.Value)
-		if err != nil {
-			resp.Diagnostics.AddError("unable to parse timeout", err.Error())
-			return
-		}
-		p.timeout = timeout
-	}
-
-	p.configured = true
 }
 
 func (p *provider) GetResources(ctx context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
@@ -79,11 +88,17 @@ func (p *provider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostic
 				PlanModifiers: tfsdk.AttributePlanModifiers{
 					tfsdk.RequiresReplace(),
 				},
+				Validators: []tfsdk.AttributeValidator{
+					networkValidator{},
+				},
 			},
 			"timeout": {
 				MarkdownDescription: "Timeout for ARP lookup.",
 				Optional:            true,
 				Type:                types.StringType,
+				Validators: []tfsdk.AttributeValidator{
+					timeValidator{},
+				},
 			},
 		},
 	}, nil
