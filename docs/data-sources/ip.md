@@ -21,6 +21,7 @@ This data source will search `network` for a host matching `macaddr`.
 
 ### Optional
 
+- `backoff` (String) How long to wait between scans of the IP ranges specified by `network`.
 - `macaddr` (String) MAC address to search for.
 - `network` (List of String) Network to search for macaddr in.
 

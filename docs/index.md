@@ -17,5 +17,8 @@ description: |-
 
 ### Optional
 
+- `backoff` (String) How long to wait between scans of the IP ranges specified by `network`.
+Global attribute that can be overidden by being set in data sources.
 - `network` (List of String) Network CIDR to search for.
 - `timeout` (String) Timeout for ARP lookup.
+Global attribute that can be overidden by being set in data sources.
