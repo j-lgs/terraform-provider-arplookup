@@ -20,9 +20,7 @@ type ipDataSourceType struct{}
 
 func (t ipDataSourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfsdk.Schema{
-		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "Example data source",
-
+		MarkdownDescription: "This data source will search `network` for a host matching `macaddr`. ",
 		Attributes: map[string]tfsdk.Attribute{
 			"macaddr": {
 				MarkdownDescription: "MAC address to search for.",
@@ -30,6 +28,9 @@ func (t ipDataSourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Dia
 				Type:                types.StringType,
 				PlanModifiers: tfsdk.AttributePlanModifiers{
 					tfsdk.RequiresReplace(),
+				},
+				Validators: []tfsdk.AttributeValidator{
+					macValidator{},
 				},
 			},
 			"network": {
@@ -41,6 +42,9 @@ func (t ipDataSourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Dia
 				PlanModifiers: tfsdk.AttributePlanModifiers{
 					tfsdk.RequiresReplace(),
 				},
+				Validators: []tfsdk.AttributeValidator{
+					networkValidator{},
+				},
 			},
 			"ip": {
 				MarkdownDescription: "Resultant IP address.",
@@ -48,7 +52,7 @@ func (t ipDataSourceType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Dia
 				Type:                types.StringType,
 			},
 			"id": {
-				MarkdownDescription: "Example identifier",
+				MarkdownDescription: "Unique identifier.",
 				Type:                types.StringType,
 				Computed:            true,
 			},
