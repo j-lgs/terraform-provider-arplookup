@@ -26,7 +26,7 @@ func TestNetInterfaceValidate(t *testing.T) {
 		},
 		{
 			iface:  "lol",
-			expect: "error getting network interface \"lol\" by name",
+			expect: "error getting network interface",
 		},
 	}
 
@@ -75,7 +75,7 @@ func TestMACValidate(t *testing.T) {
 		},
 		{
 			mac:    "xx:xx:xx:xx:xx:xx",
-			expect: "malformed or invalid MAC \"xx:xx:xx:xx:xx:xx\" provided",
+			expect: "malformed or invalid MAC",
 		},
 	}
 
@@ -124,7 +124,7 @@ func TestTimeValidate(t *testing.T) {
 		},
 		{
 			duration: "1p",
-			expect:   "malformed or invalid duration \"1p\" provided",
+			expect:   "malformed or invalid duration",
 		},
 	}
 
@@ -169,6 +169,11 @@ func TestNetworkValidate(t *testing.T) {
 		expect  string
 	}{
 		{
+			name:    "empty",
+			network: []string{},
+			expect:  "no networks specified",
+		},
+		{
 			name: "correct",
 			network: []string{
 				"10.0.0.10/24",
@@ -182,7 +187,7 @@ func TestNetworkValidate(t *testing.T) {
 				"10.0.1.10/18",
 				"10.0.0.10",
 			},
-			expect: "malformed or invalid CIDR prefix \"10.0.0.10\" provided",
+			expect: "malformed or invalid CIDR prefix",
 		},
 		{
 			name: "invalid ipset",

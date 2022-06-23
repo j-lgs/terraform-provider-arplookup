@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"inet.af/netaddr"
 )
@@ -26,21 +28,23 @@ func (v interfaceValidator) MarkdownDescription(context.Context) string {
 
 // Validate implements AttributeValidator.
 func (v interfaceValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	interfaceValue, err := req.AttributeConfig.ToTerraformValue(ctx)
-	if err != nil {
-		resp.Diagnostics.AddError("error converting attribute value to terraform value", err.Error())
+	var iface types.String
+	diags := tfsdk.ValueAs(ctx, req.AttributeConfig, &iface)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
 		return
 	}
 
-	var iface string
-	if err := interfaceValue.As(&iface); err != nil {
-		resp.Diagnostics.AddError("error converting terraform value to go value", err.Error())
+	if iface.Unknown || iface.Null {
 		return
 	}
 
-	_, err = net.InterfaceByName(iface)
+	_, err := net.InterfaceByName(iface.Value)
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(req.AttributePath, fmt.Sprintf("error getting network interface \"%s\" by name", iface), err.Error())
+		resp.Diagnostics.AddAttributeError(
+			req.AttributePath,
+			"error getting network interface",
+			fmt.Sprintf("\"%s\" by name: %s", iface, err.Error()))
 		return
 	}
 }
@@ -60,21 +64,23 @@ func (v macValidator) MarkdownDescription(context.Context) string {
 
 // Validate implements AttributeValidator.
 func (v macValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	macValue, err := req.AttributeConfig.ToTerraformValue(ctx)
-	if err != nil {
-		resp.Diagnostics.AddError("error converting attribute value to terraform value", err.Error())
+	var mac types.String
+	diags := tfsdk.ValueAs(ctx, req.AttributeConfig, &mac)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
 		return
 	}
 
-	var mac string
-	if err := macValue.As(&mac); err != nil {
-		resp.Diagnostics.AddError("error converting terraform value to go value", err.Error())
+	if mac.Unknown || mac.Null {
 		return
 	}
 
-	_, err = net.ParseMAC(mac)
+	_, err := net.ParseMAC(mac.Value)
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(req.AttributePath, fmt.Sprintf("malformed or invalid MAC \"%s\" provided", mac), err.Error())
+		resp.Diagnostics.AddAttributeError(
+			req.AttributePath,
+			"malformed or invalid MAC",
+			fmt.Sprintf("\"%s\" provided: %s", mac, err.Error()))
 		return
 	}
 }
@@ -94,25 +100,23 @@ func (v timeValidator) MarkdownDescription(context.Context) string {
 
 // Validate implements AttributeValidator.
 func (v timeValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	durationValue, err := req.AttributeConfig.ToTerraformValue(ctx)
+	var duration types.String
+	diags := tfsdk.ValueAs(ctx, req.AttributeConfig, &duration)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	if duration.Unknown || duration.Null {
+		return
+	}
+
+	_, err := time.ParseDuration(duration.Value)
 	if err != nil {
-		resp.Diagnostics.AddError("error converting attribute value to terraform value", err.Error())
-		return
-	}
-
-	if durationValue.IsNull() {
-		return
-	}
-
-	var duration string
-	if err := durationValue.As(&duration); err != nil {
-		resp.Diagnostics.AddError("error converting terraform value to go value", err.Error())
-		return
-	}
-
-	_, err = time.ParseDuration(duration)
-	if err != nil {
-		resp.Diagnostics.AddAttributeError(req.AttributePath, fmt.Sprintf("malformed or invalid duration \"%s\" provided", duration), err.Error())
+		resp.Diagnostics.AddAttributeError(
+			req.AttributePath,
+			"malformed or invalid duration",
+			fmt.Sprintf("\"%s\" provided: %s", duration, err.Error()))
 		return
 	}
 }
@@ -138,6 +142,15 @@ func (v networkValidator) Validate(ctx context.Context, req tfsdk.ValidateAttrib
 		return
 	}
 
+	var data ipDataSource
+
+	req.Config.Get(ctx, &data)
+	if reflect.DeepEqual(data.provider.network, net.IPNet{}) && networkValue.IsNull() {
+		resp.Diagnostics.AddAttributeError(req.AttributePath,
+			"no networks specified", "`network` must be specified in either the provider or the datasource.")
+		return
+	}
+
 	if networkValue.IsNull() {
 		return
 	}
@@ -152,14 +165,18 @@ func (v networkValidator) Validate(ctx context.Context, req tfsdk.ValidateAttrib
 
 	var networks = make([]string, len(networkValues))
 	for i, value := range networkValues {
-		value.As(&networks[i])
+		if err := value.As(&networks[i]); err != nil {
+			resp.Diagnostics.AddError("error converting terraform value to go value", err.Error())
+		}
 	}
 
 	for _, network := range networks {
 		p, err := netaddr.ParseIPPrefix(network)
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(req.AttributePath,
-				fmt.Sprintf("malformed or invalid CIDR prefix \"%s\" provided", network), err.Error())
+			resp.Diagnostics.AddAttributeError(
+				req.AttributePath,
+				"malformed or invalid CIDR prefix",
+				fmt.Sprintf("\"%s\" provided: %s", network, err.Error()))
 			return
 		}
 
