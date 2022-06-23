@@ -27,8 +27,8 @@ type arpClient interface {
 	destroy() error            // destroy any resources needed to perform ARP requests
 	// send a request to an IP to determine whether its MAC matches one specified in the implementation structure
 	request(netaddr.IP) (IP, error)
-	try(chan<- IP, chan<- error) // read the system's ARP cache to avoid an expensive `request` call
-	cache(IP) error              // add an IP to the system's ARP cache
+	try(channels)   // read the system's ARP cache to avoid an expensive `request` call
+	cache(IP) error // add an IP to the system's ARP cache
 }
 
 type IP struct {
@@ -37,20 +37,26 @@ type IP struct {
 }
 
 // lookupIPRange sends a request to all IPs in ipRange to determine whether their MAC matches the MAC in ac.
-func lookupIPRange(ctx context.Context, ac arpClient, ranges []netaddr.IPRange, ip chan<- IP, errors chan<- error) {
+func lookupIPRange(ctx context.Context, ac arpClient, ranges []netaddr.IPRange, chans channels) {
 	for _, ipRange := range ranges {
 		for current := ipRange.From(); current.Compare(ipRange.To()) <= 0; current = current.Next() {
+			select {
+			case <-chans.stop:
+				return
+			default:
+			}
+
 			if !isValidHost(current) {
 				continue
 			}
 
 			result, err := ac.request(current)
 			if err != nil {
-				errors <- err
+				chans.errors <- err
 				return
 			}
 			if !result.IsZero() {
-				ip <- result
+				chans.results <- result
 				return
 			}
 		}
@@ -65,6 +71,22 @@ type ctxData struct {
 	backoff time.Duration
 }
 
+type stopType struct{}
+
+type channels struct {
+	results chan IP
+	errors  chan error
+	stop    chan stopType
+}
+
+func makeChannels() channels {
+	return channels{
+		results: make(chan IP, 1),
+		errors:  make(chan error, 1),
+		stop:    make(chan stopType, 1),
+	}
+}
+
 // checkARPRun searches an ARP table for a given MAC address in a platform agnostic way. It is important
 // to check if the returned error is macNotFoundError to determine the difference between a failure in
 // operation and a failure to find the mac in the system's table.
@@ -72,26 +94,32 @@ func checkARPRun(ctx context.Context, ac arpClient, data ctxData) (ip netaddr.IP
 	ac.init(data.iface)
 	defer ac.destroy()
 
-	result := make(chan IP, 1)
-	errors := make(chan error, 1)
+	chans := makeChannels()
+	defer close(chans.stop)
 
+outer:
 	for {
-		go ac.try(result, errors)
-		go lookupIPRange(ctx, ac, data.network.Ranges(), result, errors)
+		go ac.try(chans)
+		go lookupIPRange(ctx, ac, data.network.Ranges(), chans)
 
 		t := time.NewTimer(data.backoff)
 		select {
 		case <-ctx.Done():
 			t.Stop()
+
+			chans.stop <- struct{}{}
 			return netaddr.IP{}, errNoIP
-		case err := <-errors:
-			return netaddr.IP{}, err
-		case ip := <-result:
-			if err := ac.cache(ip); err != nil {
-				return netaddr.IP{}, err
+		case err = <-chans.errors:
+			break outer
+		case ip := <-chans.results:
+			if err = ac.cache(ip); err != nil {
+				break outer
 			}
 			return ip.IP, nil
 		case <-t.C:
 		}
 	}
+
+	chans.stop <- struct{}{}
+	return netaddr.IP{}, err
 }

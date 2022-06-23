@@ -36,4 +36,4 @@ func (ac *dummyARP) destroy() error { return nil }
 
 func (ac *dummyARP) cache(IP) error { return nil }
 
-func (ac *dummyARP) try(chan<- IP, chan<- error) {}
+func (ac *dummyARP) try(chans channels) {}

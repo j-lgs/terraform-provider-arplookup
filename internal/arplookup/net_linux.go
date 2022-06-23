@@ -66,10 +66,10 @@ func (ac *linuxARP) cache(current IP) error {
 	return nil
 }
 
-func (ac *linuxARP) try(ips chan<- IP, errors chan<- error) {
+func (ac *linuxARP) try(chans channels) {
 	arp, err := os.Open("/proc/net/arp")
 	if err != nil {
-		errors <- err
+		chans.errors <- err
 		return
 	}
 	defer arp.Close()
@@ -84,13 +84,19 @@ func (ac *linuxARP) try(ips chan<- IP, errors chan<- error) {
 		mac := fields[3]
 
 		if strings.EqualFold(mac, ac.dstMAC.String()) {
+			select {
+			case <-chans.stop:
+				return
+			default:
+			}
+
 			ip, err := netaddr.ParseIP(ip)
 			if err != nil {
-				errors <- fmt.Errorf("line: \"%s\" error %w", text, err)
+				chans.errors <- fmt.Errorf("line: \"%s\" error %w", text, err)
 				return
 			}
 
-			ips <- IP{cached: true, IP: ip}
+			chans.results <- IP{cached: true, IP: ip}
 			return
 		}
 	}
