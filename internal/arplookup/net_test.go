@@ -49,6 +49,48 @@ func TestCheckARPRunInvalid(t *testing.T) {
 	}
 }
 
+// TestCheckARPRunTimeout verifies whether the function respects the timeout set in the passed context.
+func TestCheckARPRunTimeout(t *testing.T) {
+	var builderIncorrect netaddr.IPSetBuilder
+	builderIncorrect.AddPrefix(netaddr.MustParseIPPrefix("192.168.34.0/16"))
+	ipSetIncorrect, _ := builderIncorrect.IPSet()
+
+	testcases := []struct {
+		ipset   *netaddr.IPSet
+		expect  netaddr.IP
+		timeout time.Duration
+		backoff time.Duration
+	}{
+		{
+			ipset:   ipSetIncorrect,
+			expect:  netaddr.MustParseIP("10.0.33.44"),
+			timeout: 50 * time.Millisecond,
+			backoff: 5 * time.Second,
+		},
+		{
+			ipset:   ipSetIncorrect,
+			expect:  netaddr.MustParseIP("10.0.33.44"),
+			timeout: 150 * time.Millisecond,
+			backoff: 100 * time.Millisecond,
+		},
+	}
+
+	for _, test := range testcases {
+		ac := mkDummyARP(test.expect)
+
+		ctx, cancel := context.WithTimeout(context.Background(), test.timeout)
+		defer cancel()
+
+		start := time.Now()
+		checkARPRun(ctx, ac, ctxData{nil, test.ipset, arpFuncBackoff})
+		elapsed := time.Since(start)
+		if elapsed.Round(2*time.Millisecond) != test.timeout.Round(2*time.Millisecond) {
+			t.Fatalf("checkARPRun did not respect context timeout, took \"%s\", should have taken \"%s\"",
+				elapsed.String(), test.timeout.String())
+		}
+	}
+}
+
 // TestCheckARPRun checks whether checkARPRun will return valid data if it finds a machine with a desired MAC.
 func TestCheckARPRun(t *testing.T) {
 	var builderCorrect netaddr.IPSetBuilder
