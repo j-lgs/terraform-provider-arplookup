@@ -144,3 +144,55 @@ data "arplookup_ip" "test" {
   ]
 }
 `
+
+func TestAccIPDataSourceInvalidMAC(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			testAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccInvalidMAC,
+				ExpectError: regexp.MustCompile("malformed or invalid MAC"),
+				Check:       resource.ComposeAggregateTestCheckFunc(),
+			},
+		},
+	})
+}
+
+var testAccInvalidMAC = `
+data "arplookup_ip" "test" {
+  interface = "br0"
+  macaddr = "00:00:00:00:xx"
+  network = [
+    "10.18.0.1/32",
+  ]
+}
+`
+
+func TestAccIPDataSourceInvalidNetwork(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			testAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccDataSourceWrongNetwork,
+				ExpectError: regexp.MustCompile("malformed or invalid CIDR prefix"),
+				Check:       resource.ComposeAggregateTestCheckFunc(),
+			},
+		},
+	})
+}
+
+var testAccDataSourceWrongNetwork = `
+data "arplookup_ip" "test" {
+  interface = "br0"
+  macaddr = "` + mac + `"
+  network = [
+    "10.18.0.18"
+  ]
+}
+`
