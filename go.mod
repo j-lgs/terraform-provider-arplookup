@@ -13,7 +13,7 @@ require (
 	github.com/opencontainers/runc v1.1.3
 	honnef.co/go/tools v0.3.2
 	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
-	kernel.org/pub/linux/libs/security/libcap/cap v1.2.64
+	kernel.org/pub/linux/libs/security/libcap/cap v1.2.65
 )
 
 require (
@@ -221,7 +221,7 @@ require (
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	kernel.org/pub/linux/libs/security/libcap/psx v1.2.64 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.65 // indirect
 	mvdan.cc/gofumpt v0.3.1 // indirect
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
 	mvdan.cc/lint v0.0.0-20170908181259-adc824a0674b // indirect
