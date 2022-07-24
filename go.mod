@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-framework v0.9.0
 	github.com/hashicorp/terraform-plugin-go v0.12.0
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.18.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.19.0
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
 	github.com/opencontainers/runc v1.1.3
 	honnef.co/go/tools v0.3.2
