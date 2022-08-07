@@ -21,7 +21,7 @@
 
           src = ./.;
 
-          vendorSha256 = "sha256-0LB2kkLvRra5oT+bvhYURNqTn6ZBmZWVnvukUGLpLRY=";
+          vendorSha256 = "sha256-az8X5R4CAXQ5w1GoVnMHAXG+qK4h9y7r//0q8gwbI98=";
 
           doCheck = true;
 
