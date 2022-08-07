@@ -6,9 +6,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 func TestNetInterfaceValidate(t *testing.T) {
@@ -38,7 +38,7 @@ func TestNetInterfaceValidate(t *testing.T) {
 		}
 
 		req := tfsdk.ValidateAttributeRequest{
-			AttributePath:   tftypes.NewAttributePath().WithAttributeName("interface"),
+			AttributePath:   path.Root("interface"),
 			AttributeConfig: iface,
 			Config:          tfsdk.Config{},
 		}
@@ -87,7 +87,7 @@ func TestMACValidate(t *testing.T) {
 		}
 
 		req := tfsdk.ValidateAttributeRequest{
-			AttributePath:   tftypes.NewAttributePath().WithAttributeName("interface"),
+			AttributePath:   path.Root("interface"),
 			AttributeConfig: mac,
 			Config:          tfsdk.Config{},
 		}
@@ -136,7 +136,7 @@ func TestTimeValidate(t *testing.T) {
 		}
 
 		req := tfsdk.ValidateAttributeRequest{
-			AttributePath:   tftypes.NewAttributePath().WithAttributeName("interface"),
+			AttributePath:   path.Root("interface"),
 			AttributeConfig: duration,
 			Config:          tfsdk.Config{},
 		}
@@ -208,7 +208,7 @@ func TestNetworkValidate(t *testing.T) {
 		}
 
 		req := tfsdk.ValidateAttributeRequest{
-			AttributePath:   tftypes.NewAttributePath().WithAttributeName("interface"),
+			AttributePath:   path.Root("interface"),
 			AttributeConfig: network,
 			Config:          tfsdk.Config{},
 		}
