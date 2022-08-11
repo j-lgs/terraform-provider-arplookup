@@ -6,8 +6,8 @@ require (
 	github.com/go-ping/ping v1.1.0
 	github.com/golangci/golangci-lint v1.47.2
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
-	github.com/hashicorp/terraform-plugin-framework v0.10.0
-	github.com/hashicorp/terraform-plugin-go v0.12.0
+	github.com/hashicorp/terraform-plugin-framework v0.11.0
+	github.com/hashicorp/terraform-plugin-go v0.13.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.20.0
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875
 	github.com/opencontainers/runc v1.1.3
