@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: go mod download
       - run: go build -v .
       - run: go vet ./...
@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: go generate ./...
       - name: git diff
         run: |
@@ -64,7 +64,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Checkout source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Download go modules
         run: go mod download
 
